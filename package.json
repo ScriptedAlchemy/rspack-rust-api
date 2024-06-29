@@ -1,0 +1,14 @@
+{
+  "name": "rspack-rust-api",
+  "version": "1.0.0",
+  "description": "still not working, needs fix some problem first Todo: * fix yanked dashmap",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "react": "^18.3.1"
+  }
+}
