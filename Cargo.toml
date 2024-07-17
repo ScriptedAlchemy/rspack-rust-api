@@ -3,17 +3,32 @@ name = "rspack-rust-api"
 version = "0.1.0"
 edition = "2021"
 
-
 [dependencies]
-rspack_plugin_schemes= { git = "https://github.com/web-infra-dev/rspack", branch = "main"}
-rspack_ids= { git = "https://github.com/web-infra-dev/rspack", branch = "main"}
-rspack_binding_options= { git = "https://github.com/web-infra-dev/rspack", branch = "main"}
-rspack_hook= { git = "https://github.com/web-infra-dev/rspack", branch = "main", package = "rspack_hook"}
-rspack_plugin_javascript= { git = "https://github.com/web-infra-dev/rspack", branch = "main", package = "rspack_plugin_javascript"}
-rspack_error = { git = "https://github.com/web-infra-dev/rspack", branch = "main", package = "rspack_error"}
-rspack_core = { git = "https://github.com/web-infra-dev/rspack", branch = "main"}
-rspack_plugin_entry = { git = "https://github.com/web-infra-dev/rspack", branch = "main", package = "rspack_plugin_entry" }
-rspack_fs = { git = "https://github.com/web-infra-dev/rspack", branch = "main", package = "rspack_fs" }
+rspack_plugin_schemes= { path = "../rspack/crates/rspack_plugin_schemes" }
+rspack_ids= { path = "../rspack/crates/rspack_ids" }
+rspack_binding_options= { path = "../rspack/crates/rspack_binding_options" }
+rspack_hook= { path = "../rspack/crates/rspack_hook" }
+rspack_plugin_javascript= { path = "../rspack/crates/rspack_plugin_javascript" }
+rspack_error = { path = "../rspack/crates/rspack_error" }
+rspack_core = { path = "../rspack/crates/rspack_core" }
+rspack_plugin_entry = { path = "../rspack/crates/rspack_plugin_entry" }
+rspack_plugin_externals = { path = "../rspack/crates/rspack_plugin_externals" }
+rspack_fs = { path = "../rspack/crates/rspack_fs" }
 serde_json = "1.0.113"
+base64 = "0.22.1"
 tokio = {features = ["full"], version = "1.38.0"}
-miette = { version = "*"}
+miette = { version = "*" }
+hyper = { version = "1", features = ["full"] }
+http-body-util = "0.1"
+hyper-util = { version = "0.1", features = ["full"] }
+serde = { version = "1.0", features = ["derive"] }
+bytes = "1.6.0"
+pretty_env_logger = "0.5.0"
+url = "2.5.2"
+form_urlencoded = "1"
+futures = "0.3.30"
+async-trait = "0.1.80"
+rsfs = "0.4.1"
+oxc_resolver = "1.9.1"
+[features]
+async = []

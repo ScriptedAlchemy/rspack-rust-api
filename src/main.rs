@@ -1,154 +1,89 @@
-use std::path::Path;
-use rspack_ids::NaturalChunkIdsPlugin;
-use rspack_ids::NamedModuleIdsPlugin;
-use rspack_core::JavascriptParserOptions;
-use rspack_core::ModuleType;
-use rspack_core::ParserOptions;
-use rspack_core::ParserOptionsByModuleType;
-use rspack_core::{
-    Builtins, CacheOptions, ChunkLoading, ChunkLoadingType, Compiler, CompilerOptions, Context,
-    CrossOriginLoading, DevServerOptions, EntryOptions, Environment, Experiments, Filename,
-    HashDigest, HashFunction, HashSalt, MangleExportsOption, Mode, ModuleOptions, Optimization,
-    OutputOptions, PathInfo, Plugin, PublicPath, Resolve, SideEffectOption, SnapshotOptions,
-    StatsOptions, Target, UsedExportsOption, WasmLoading,
-};
-use rspack_fs::AsyncNativeFileSystem;
-use rspack_plugin_entry::EntryPlugin;
-use rspack_plugin_javascript::JsPlugin;
-use rspack_plugin_schemes::DataUriPlugin;
-use serde_json::Map;
-use serde_json::Value;
-use std::fs;
+#![allow(warnings)]
+
+use std::convert::Infallible;
+use std::net::SocketAddr;
+
+use bytes::Bytes;
+use http_body_util::Full;
+use hyper::server::conn::http1;
+use hyper::service::service_fn;
+use hyper::{Request, Response};
+use tokio::net::TcpListener;
+use hyper_util::rt::TokioIo;
+use std::collections::HashMap;
+use std::time::Instant;
+use url::form_urlencoded;
+mod edge_compile;
+mod memory_fs;
+
+// An async function that consumes a request, executes the rspack file, and returns a response.
+async fn handle_request(req: Request<impl hyper::body::Body>) -> Result<Response<Full<Bytes>>, Infallible> {
+    if req.uri().path() == "/favicon.ico" {
+        return Ok(Response::new(Full::new(Bytes::new())));
+    }
+
+    let start_time = Instant::now();
+
+    // Parse the query parameters
+    let query_params: HashMap<_, _> = req.uri().query().map(|v| {
+        form_urlencoded::parse(v.as_bytes()).into_iter().collect()
+    }).unwrap_or_else(HashMap::new);
+    
+    // Log the query parameters for debugging
+    dbg!(req.uri().clone()); // Ensure dbg! does not interfere with the return type
+
+    // Get the entry parameter
+    let entry = query_params.get("entry").cloned().unwrap_or_else(|| "".to_string().into());
+    // Pass the entry parameter to the compile function
+    let result = edge_compile::compile(Some(entry.clone().to_string())).await;
+    let duration = start_time.elapsed();
+
+    // Format the response body with compile time and file contents
+    let mut response_body = format!("Compile time: {:?}\n", duration);
+    for (path, content) in result {
+        response_body.push_str(&format!("File path: {}\n", path));
+        response_body.push_str(&format!("File content: {}\n", String::from_utf8_lossy(&content)));
+    }
+
+    Ok(Response::new(Full::new(Bytes::from(response_body))))
+}
 
 #[tokio::main]
-async fn main() {
-    let output_filesystem = AsyncNativeFileSystem {};
-    let root = env!("CARGO_MANIFEST_DIR");
-    let context = Context::new(root.to_string());
-    let dist: std::path::PathBuf = Path::new(root).join("./dist");
-    if !dist.exists() {
-        fs::create_dir_all(&dist).expect("Failed to create dist directory");
-    }
-    let dist = dist.canonicalize().unwrap();
-    let entry_request: String = Path::new(root)
-        .join("./fixtures/index.js")
-        .canonicalize()
-        .unwrap()
-        .to_string_lossy()
-        .to_string();
-    let options = CompilerOptions {
-        context: root.into(),
-        dev_server: DevServerOptions::default(),
-        output: OutputOptions {
-            path: dist,
-            pathinfo: PathInfo::Bool(false),
-            clean: false,
-            public_path: PublicPath::Auto,
-            asset_module_filename: Filename::from(String::from("asset-[name].js")),
-            wasm_loading: WasmLoading::Disable,
-            webassembly_module_filename: Filename::from(String::from("webassembly.js")),
-            unique_name: "main".into(),
-            chunk_loading: ChunkLoading::Enable(ChunkLoadingType::Import),
-            chunk_loading_global: String::new(),
-            filename: Filename::from(String::from("[name].js")),
-            chunk_filename: Filename::from(String::from("[id].js")),
-            cross_origin_loading: CrossOriginLoading::Disable,
-            css_filename: Filename::from(String::from("[name].css")),
-            css_chunk_filename: Filename::from(String::from("[id].css")),
-            hot_update_main_filename: Filename::from(String::from("[name].[hash].hot-update.js")),
-            hot_update_chunk_filename: Filename::from(String::from("[id].[hash].hot-update.js")),
-            hot_update_global: String::new(),
-            library: None,
-            enabled_library_types: None,
-            strict_module_error_handling: false,
-            global_object: String::from("window"),
-            import_function_name: String::from("import"),
-            iife: false,
-            module: false,
-            trusted_types: None,
-            source_map_filename: Filename::from(String::from("[file].map")),
-            hash_function: HashFunction::MD4,
-            hash_digest: HashDigest::Hex,
-            hash_digest_length: 20,
-            hash_salt: HashSalt::Salt(String::from("salt")),
-            async_chunks: false,
-            worker_chunk_loading: ChunkLoading::Disable,
-            worker_wasm_loading: WasmLoading::Disable,
-            worker_public_path: String::new(),
-            script_type: String::from("text/javascript"),
-            environment: Environment {
-                r#const: Some(true),
-                arrow_function: Some(true),
-            },
-        },
-        target: Target::new(&vec!["es2022".to_string()]).unwrap(),
-        mode: Mode::Development,
-        resolve: Resolve {
-            extensions: Some(vec![".js".to_string()]),
-            ..Default::default()
-        },
-        resolve_loader: Resolve {
-            extensions: Some(vec![".js".to_string()]),
-            ..Default::default()
-        },
-        module: ModuleOptions {
-            parser: Some(ParserOptionsByModuleType::from_iter([(
-                ModuleType::JsAuto,
-                ParserOptions::Javascript(JavascriptParserOptions {
-                    dynamic_import_mode: rspack_core::DynamicImportMode::Eager,
-                    dynamic_import_prefetch: rspack_core::JavascriptParserOrder::Order(1),
-                    dynamic_import_preload: rspack_core::JavascriptParserOrder::Order(1),
-                    url: rspack_core::JavascriptParserUrl::Disable,
-                    expr_context_critical: false,
-                    wrapped_context_critical: false,
-                    exports_presence: None,
-                    import_exports_presence: None,
-                    reexport_exports_presence: None,
-                    strict_export_presence: false,
-                    worker: vec![],
-                }),
-            )])),
-            //    generator: Some(GeneratorOptionsByModuleType::from_iter(generator.iter())),
-            ..Default::default()
-        },
-        stats: StatsOptions::default(),
-        snapshot: SnapshotOptions,
-        cache: CacheOptions::default(),
-        experiments: Experiments::default(),
-        optimization: Optimization {
-            concatenate_modules: false,
-            remove_available_modules: false,
-            provided_exports: false,
-            mangle_exports: MangleExportsOption::False,
-            inner_graph: true,
-            used_exports: UsedExportsOption::default(),
-            side_effects: SideEffectOption::default(),
-        },
-        profile: false,
-        bail: false,
-        builtins: Builtins::default(),
-        __references: Map::<String, Value>::new(),
-        node: None,
-    };
-    let mut plugins: Vec<Box<dyn Plugin>> = Vec::new();
+pub async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+    pretty_env_logger::init();
 
-    let plugin_options = EntryOptions {
-        name: Some("main".to_string()),
-        runtime: None,
-        chunk_loading: None,
-        async_chunks: None,
-        public_path: None,
-        base_uri: None,
-        filename:None,
-        library: None,
-        depend_on: None,
-    };
-    let entry_plugin = Box::new(EntryPlugin::new(context, entry_request, plugin_options));
-    plugins.push(Box::<JsPlugin>::default());
-    plugins.push(entry_plugin);
-    plugins.push(Box::<NaturalChunkIdsPlugin>::default());
-    plugins.push(Box::<NamedModuleIdsPlugin>::default());
-    plugins.push(Box::<DataUriPlugin>::default());
-    let mut compiler = Compiler::new(options, plugins, output_filesystem);
-    compiler.build().await.expect("build failed");
+    // This address is localhost
+    let addr: SocketAddr = ([127, 0, 0, 1], 3001).into();
+
+    // Bind to the port and listen for incoming TCP connections
+    let listener = TcpListener::bind(addr).await?;
+    println!("Listening on http://{}", addr);
+    loop {
+        // When an incoming TCP connection is received grab a TCP stream for
+        // client<->server communication.
+        //
+        // Note, this is a .await point, this loop will loop forever but is not a busy loop. The
+        // .await point allows the Tokio runtime to pull the task off of the thread until the task
+        // has work to do. In this case, a connection arrives on the port we are listening on and
+        // the task is woken up, at which point the task is then put back on a thread, and is
+        // driven forward by the runtime, eventually yielding a TCP stream.
+        let (tcp, _) = listener.accept().await?;
+        // Use an adapter to access something implementing `tokio::io` traits as if they implement
+        // `hyper::rt` IO traits.
+        let io = TokioIo::new(tcp);
+
+        // Spin up a new task in Tokio so we can continue to listen for new TCP connection on the
+        // current task without waiting for the processing of the HTTP1 connection we just received
+        // to finish
+        tokio::task::spawn(async move {
+            // Handle the connection from the client using HTTP1 and pass any
+            // HTTP requests received on that connection to the `handle_request` function
+            if let Err(err) = http1::Builder::new()
+                .serve_connection(io, service_fn(handle_request))
+                .await
+            {
+                println!("Error serving connection: {:?}", err);
+            }
+        });
+    }
 }
