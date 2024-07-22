@@ -91,6 +91,8 @@ pub async fn compile(network_entry: Option<String>) -> HashMap<String, Vec<u8>> 
                 r#const: Some(true),
                 arrow_function: Some(true),
             },
+            charset: false, // Changed from Some(String::from("utf-8")) to false
+            chunk_load_timeout: 120000, // Added this line (value in milliseconds)
         },
         target: Target::new(&vec!["es2022".to_string()]).unwrap(),
         mode: Mode::Development,
@@ -118,6 +120,7 @@ pub async fn compile(network_entry: Option<String>) -> HashMap<String, Vec<u8>> 
                     strict_export_presence: false,
                     worker: vec![],
                     dynamic_import_preload: rspack_core::JavascriptParserOrder::Order(0),
+                    override_strict: None, // Changed from false to None
                 }),
             )])),
             ..Default::default()
