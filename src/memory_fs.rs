@@ -71,11 +71,11 @@ impl WritableFileSystem for MockFileSystem {
 }
 
 impl ReadableFileSystem for MockFileSystem {
-    fn read<P: AsRef<Path>>(&self, file: P) -> Result<Vec<u8>> {
-        let file_ref = file.as_ref().to_path_buf();
-        dbg!("Reading file: {}", file_ref.display());
+    fn read(&self, file: String) -> Result<Vec<u8>> {
+        let file_path = PathBuf::from(file);
+        dbg!("Reading file: {}", file_path.display());
         let files = self.files.blocking_read();
-        files.get(&file_ref).cloned().ok_or_else(|| rspack_fs::Error::Io(std::io::Error::new(std::io::ErrorKind::NotFound, "File not found")))
+        files.get(&file_path).cloned().ok_or_else(|| rspack_fs::Error::Io(std::io::Error::new(std::io::ErrorKind::NotFound, "File not found")))
     }
 }
 
@@ -138,13 +138,13 @@ impl AsyncWritableFileSystem for MockFileSystem {
 }
 
 impl AsyncReadableFileSystem for MockFileSystem {
-    fn read<P: AsRef<Path>>(&self, file: P) -> BoxFuture<'_, Result<Vec<u8>>> {
-        let file_ref = file.as_ref().to_path_buf();
-        dbg!("Async reading file: {}", file_ref.display());
+    fn read(&self, file: String) -> BoxFuture<'_, Result<Vec<u8>>> {
+        let file_path = PathBuf::from(file);
+        dbg!("Async reading file: {}", file_path.display());
         let files = self.files.clone();
         Box::pin(async move {
             let files = files.read().await;
-            files.get(&file_ref).cloned().ok_or_else(|| rspack_fs::Error::Io(std::io::Error::new(std::io::ErrorKind::NotFound, "File not found")))
+            files.get(&file_path).cloned().ok_or_else(|| rspack_fs::Error::Io(std::io::Error::new(std::io::ErrorKind::NotFound, "File not found")))
         })
     }
 }
