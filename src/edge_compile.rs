@@ -198,7 +198,7 @@ pub async fn compile(network_entry: Option<String>) -> HashMap<String, Vec<u8>> 
         lockfile_location,
         proxy: Some("http://proxy.example.com".to_string()),
         upgrade: Some(true),
-        filesystem: Box::new(mock_fs.clone()),
+        filesystem: Arc::new(mock_fs.clone())
     };
     plugins.push(Box::new(HttpUriPlugin::new(http_uri_options)));
 
