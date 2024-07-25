@@ -22,16 +22,16 @@ use std::fs;
 use crate::memory_fs::MockFileSystem;
 
 pub async fn compile(network_entry: Option<String>) -> HashMap<String, Vec<u8>> {
-    let instance = MockFileSystem::new();
-    let output_filesystem = instance.clone();
+    let mock_fs = MockFileSystem::new();
+    let output_filesystem = mock_fs.clone();
     let root = env!("CARGO_MANIFEST_DIR");
     let context = Context::new(root.to_string().into());
-    let dist: std::path::PathBuf = Path::new(root).join("./dist");
-    if !dist.exists() {
-        fs::create_dir_all(&dist).expect("Failed to create dist directory");
+    let dist_dir: std::path::PathBuf = Path::new(root).join("./dist");
+    if !dist_dir.exists() {
+        fs::create_dir_all(&dist_dir).expect("Failed to create dist directory");
     }
-    let dist = dist.canonicalize().unwrap();
-    let entry_request: String = network_entry
+    let dist_dir = dist_dir.canonicalize().unwrap();
+    let entry_file: String = network_entry
         .as_deref()
         .filter(|entry| !entry.is_empty())
         .map_or_else(
@@ -47,11 +47,11 @@ pub async fn compile(network_entry: Option<String>) -> HashMap<String, Vec<u8>> 
         );
     dbg!(network_entry.clone());
 
-    let options = CompilerOptions {
+    let compiler_options = CompilerOptions {
         context: root.into(),
         dev_server: DevServerOptions::default(),
         output: OutputOptions {
-            path: dist,
+            path: dist_dir,
             pathinfo: PathInfo::Bool(false),
             clean: false,
             public_path: PublicPath::Auto,
@@ -91,6 +91,8 @@ pub async fn compile(network_entry: Option<String>) -> HashMap<String, Vec<u8>> 
                 r#const: Some(true),
                 arrow_function: Some(true),
             },
+            charset: false, // Changed from Some(String::from("utf-8")) to false
+            chunk_load_timeout: 120000, // Added this line (value in milliseconds)
         },
         target: Target::new(&vec!["es2022".to_string()]).unwrap(),
         mode: Mode::Development,
@@ -118,6 +120,7 @@ pub async fn compile(network_entry: Option<String>) -> HashMap<String, Vec<u8>> 
                     strict_export_presence: false,
                     worker: vec![],
                     dynamic_import_preload: rspack_core::JavascriptParserOrder::Order(0),
+                    override_strict: None, // Changed from false to None
                 }),
             )])),
             ..Default::default()
@@ -142,7 +145,7 @@ pub async fn compile(network_entry: Option<String>) -> HashMap<String, Vec<u8>> 
     };
     let mut plugins: Vec<Box<dyn Plugin>> = Vec::new();
 
-    let plugin_options = EntryOptions {
+    let entry_plugin_options = EntryOptions {
         name: Some("main".to_string()),
         runtime: None,
         chunk_loading: None,
@@ -153,7 +156,7 @@ pub async fn compile(network_entry: Option<String>) -> HashMap<String, Vec<u8>> 
         library: None,
         depend_on: None,
     };
-    let entry_plugin = Box::new(EntryPlugin::new(context, entry_request.clone(), plugin_options));
+    let entry_plugin = Box::new(EntryPlugin::new(context, entry_file.clone(), entry_plugin_options));
     plugins.push(Box::<JsPlugin>::default());
     plugins.push(entry_plugin);
     plugins.push(Box::<NaturalChunkIdsPlugin>::default());
@@ -195,20 +198,21 @@ pub async fn compile(network_entry: Option<String>) -> HashMap<String, Vec<u8>> 
         lockfile_location,
         proxy: Some("http://proxy.example.com".to_string()),
         upgrade: Some(true),
+        filesystem: Arc::new(mock_fs.clone())
     };
     plugins.push(Box::new(HttpUriPlugin::new(http_uri_options)));
 
-    let resolver_factory = Arc::new(ResolverFactory::new(options.resolve.clone()));
-    let loader_resolver_factory = Arc::new(ResolverFactory::new(options.resolve_loader.clone()));
-    let mut compiler = Compiler::new(options, plugins, instance, resolver_factory, loader_resolver_factory);
-    println!("Compiling with entry: {}", entry_request);
+    let resolver_factory = Arc::new(ResolverFactory::new(compiler_options.resolve.clone()));
+    let loader_resolver_factory = Arc::new(ResolverFactory::new(compiler_options.resolve_loader.clone()));
+    let mut compiler = Compiler::new(compiler_options, plugins, mock_fs, resolver_factory, loader_resolver_factory);
+    println!("Compiling with entry: {}", entry_file);
     compiler.build().await.expect("build failed");
 
     // Dump all files in the output_filesystem
-    let files = output_filesystem.files.read().await;
+    let compiled_files = output_filesystem.files.read().await;
 
     // Return the files HashMap
-    files.iter()
+    compiled_files.iter()
         .map(|(path, content)| (path.to_string_lossy().to_string(), content.clone()))
         .collect()
 }
