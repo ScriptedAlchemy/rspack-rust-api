@@ -20,6 +20,8 @@ use rspack_plugin_schemes::{
 use serde_json::{Map, Value};
 use std::fs;
 use crate::memory_fs::MockFileSystem;
+use rspack_fs::AsyncFileSystem;
+use rspack_fs::AsyncNativeFileSystem;
 
 pub async fn compile(network_entry: Option<String>) -> HashMap<String, Vec<u8>> {
     let mock_fs = MockFileSystem::new();
@@ -162,6 +164,10 @@ pub async fn compile(network_entry: Option<String>) -> HashMap<String, Vec<u8>> 
     plugins.push(Box::<NaturalChunkIdsPlugin>::default());
     plugins.push(Box::<NamedModuleIdsPlugin>::default());
     plugins.push(Box::<DataUriPlugin>::default());
+
+    // Create an AsyncNativeFileSystem instance
+    let native_fs = Arc::new(AsyncNativeFileSystem::new());
+
     let cache_location = Some({
         let cwd = std::env::current_dir().unwrap();
         let mut dir = cwd.clone();
@@ -198,7 +204,7 @@ pub async fn compile(network_entry: Option<String>) -> HashMap<String, Vec<u8>> 
         lockfile_location,
         proxy: Some("http://proxy.example.com".to_string()),
         upgrade: Some(true),
-        filesystem: Box::new(mock_fs.clone()),
+        filesystem: native_fs.clone(), // Use the native filesystem here
     };
     plugins.push(Box::new(HttpUriPlugin::new(http_uri_options)));
 
@@ -215,4 +221,5 @@ pub async fn compile(network_entry: Option<String>) -> HashMap<String, Vec<u8>> 
     compiled_files.iter()
         .map(|(path, content)| (path.to_string_lossy().to_string(), content.clone()))
         .collect()
+}  .collect()
 }
