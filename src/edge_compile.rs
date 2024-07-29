@@ -94,8 +94,8 @@ pub async fn compile(network_entry: Option<String>) -> HashMap<String, Vec<u8>> 
                 r#const: Some(true),
                 arrow_function: Some(true),
             },
-            charset: false, // Changed from Some(String::from("utf-8")) to false
-            chunk_load_timeout: 120000, // Added this line (value in milliseconds)
+            charset: false,
+            chunk_load_timeout: 120000,
         },
         target: Target::new(&vec!["es2022".to_string()]).unwrap(),
         mode: Mode::Development,
@@ -123,7 +123,7 @@ pub async fn compile(network_entry: Option<String>) -> HashMap<String, Vec<u8>> 
                     strict_export_presence: false,
                     worker: vec![],
                     dynamic_import_preload: rspack_core::JavascriptParserOrder::Order(0),
-                    override_strict: None, // Changed from false to None
+                    override_strict: None,
                 }),
             )])),
             ..Default::default()
@@ -166,7 +166,6 @@ pub async fn compile(network_entry: Option<String>) -> HashMap<String, Vec<u8>> 
     plugins.push(Box::<NamedModuleIdsPlugin>::default());
     plugins.push(Box::<DataUriPlugin>::default());
 
-    // Create an AsyncNativeFileSystem instance
     let native_fs: Arc<dyn AsyncFileSystem + Send + Sync> = Arc::new(RealFileSystem::new());
 
     let cache_location = Some({
@@ -205,7 +204,7 @@ pub async fn compile(network_entry: Option<String>) -> HashMap<String, Vec<u8>> 
         lockfile_location,
         proxy: Some("http://proxy.example.com".to_string()),
         upgrade: Some(true),
-        filesystem: native_fs.clone(), // Use the native filesystem here
+        filesystem: native_fs.clone(),
     };
     plugins.push(Box::new(HttpUriPlugin::new(http_uri_options)));
 
@@ -215,10 +214,8 @@ pub async fn compile(network_entry: Option<String>) -> HashMap<String, Vec<u8>> 
     println!("Compiling with entry: {}", entry_file);
     compiler.build().await.expect("build failed");
 
-    // Dump all files in the output_filesystem
     let compiled_files = output_filesystem.files.read().await;
 
-    // Return the files HashMap
     compiled_files.iter()
         .map(|(path, content)| (path.to_string_lossy().to_string(), content.clone()))
         .collect()
