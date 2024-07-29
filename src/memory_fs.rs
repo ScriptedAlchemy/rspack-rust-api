@@ -13,20 +13,6 @@ use rspack_fs::{
     Result,
 };
 
-#[macro_export]
-macro_rules! cfg_async {
-    ($($item:item)*) => {
-        $( #[cfg(feature = "async")] $item )*
-    }
-}
-
-#[macro_export]
-macro_rules! cfg_native {
-    ($($item:item)*) => {
-        $( #[cfg(feature = "native")] $item )*
-    }
-}
-
 #[derive(Clone)]
 pub struct MockFileSystem {
     pub files: Arc<AsyncRwLock<HashMap<PathBuf, Vec<u8>>>>,

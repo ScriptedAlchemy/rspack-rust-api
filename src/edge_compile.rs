@@ -20,6 +20,7 @@ use rspack_plugin_schemes::{
 use serde_json::{Map, Value};
 use std::fs;
 use crate::memory_fs::MockFileSystem;
+use crate::system_fs::RealFileSystem;
 use rspack_fs::AsyncFileSystem;
 use rspack_fs::AsyncNativeFileSystem;
 
@@ -166,7 +167,7 @@ pub async fn compile(network_entry: Option<String>) -> HashMap<String, Vec<u8>> 
     plugins.push(Box::<DataUriPlugin>::default());
 
     // Create an AsyncNativeFileSystem instance
-    let native_fs = Arc::new(AsyncNativeFileSystem::new());
+    let native_fs: Arc<dyn AsyncFileSystem + Send + Sync> = Arc::new(RealFileSystem::new());
 
     let cache_location = Some({
         let cwd = std::env::current_dir().unwrap();
@@ -221,5 +222,4 @@ pub async fn compile(network_entry: Option<String>) -> HashMap<String, Vec<u8>> 
     compiled_files.iter()
         .map(|(path, content)| (path.to_string_lossy().to_string(), content.clone()))
         .collect()
-}  .collect()
 }
