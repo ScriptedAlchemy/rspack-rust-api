@@ -77,6 +77,7 @@ pub async fn compile(network_entry: Option<String>) -> HashMap<String, Vec<u8>> 
             strict_module_error_handling: false,
             global_object: String::from("window"),
             import_function_name: String::from("import"),
+            import_meta_name: String::from("import.meta"),
             iife: false,
             module: false,
             trusted_types: None,
@@ -96,6 +97,7 @@ pub async fn compile(network_entry: Option<String>) -> HashMap<String, Vec<u8>> 
             },
             charset: false,
             chunk_load_timeout: 120000,
+            css_head_data_compression: false,
         },
         target: Target::new(&vec!["es2022".to_string()]).unwrap(),
         mode: Mode::Development,
@@ -113,6 +115,7 @@ pub async fn compile(network_entry: Option<String>) -> HashMap<String, Vec<u8>> 
                 ParserOptions::Javascript(JavascriptParserOptions {
                     dynamic_import_mode: rspack_core::DynamicImportMode::Eager,
                     dynamic_import_prefetch: rspack_core::JavascriptParserOrder::Order(1),
+                    import_meta: false,
                     dynamic_import_fetch_priority: Some(rspack_core::DynamicImportFetchPriority::Auto),
                     url: rspack_core::JavascriptParserUrl::Disable,
                     expr_context_critical: false,
@@ -151,6 +154,7 @@ pub async fn compile(network_entry: Option<String>) -> HashMap<String, Vec<u8>> 
     let entry_plugin_options = EntryOptions {
         name: Some("main".to_string()),
         runtime: None,
+        layer: None,
         chunk_loading: None,
         async_chunks: None,
         public_path: None,
