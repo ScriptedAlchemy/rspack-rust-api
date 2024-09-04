@@ -23,6 +23,7 @@ use crate::memory_fs::MockFileSystem;
 use crate::system_fs::RealFileSystem;
 use rspack_fs::AsyncFileSystem;
 use rspack_fs::AsyncNativeFileSystem;
+use crate::http_io::http_io;
 
 pub async fn compile(network_entry: Option<String>) -> HashMap<String, Vec<u8>> {
     let mock_fs = MockFileSystem::new();
@@ -164,11 +165,11 @@ pub async fn compile(network_entry: Option<String>) -> HashMap<String, Vec<u8>> 
         depend_on: None,
     };
     let entry_plugin = Box::new(EntryPlugin::new(context, entry_file.clone(), entry_plugin_options));
-    plugins.push(Box::<JsPlugin>::default());
+    plugins.push(Box::new(JsPlugin::default()));
     plugins.push(entry_plugin);
-    plugins.push(Box::<NaturalChunkIdsPlugin>::default());
-    plugins.push(Box::<NamedModuleIdsPlugin>::default());
-    plugins.push(Box::<DataUriPlugin>::default());
+    plugins.push(Box::new(NaturalChunkIdsPlugin::default()));
+    plugins.push(Box::new(NamedModuleIdsPlugin::default()));
+    plugins.push(Box::new(DataUriPlugin::default()));
 
     let native_fs: Arc<dyn AsyncFileSystem + Send + Sync> = Arc::new(RealFileSystem::new());
 
@@ -182,7 +183,7 @@ pub async fn compile(network_entry: Option<String>) -> HashMap<String, Vec<u8>> 
                 }
             }
             let parent = dir.parent();
-            if parent.is_none() {
+            if parent is_none() {
                 dir = cwd.join(".cache/webpack");
                 break;
             }
@@ -209,6 +210,7 @@ pub async fn compile(network_entry: Option<String>) -> HashMap<String, Vec<u8>> 
         proxy: Some("http://proxy.example.com".to_string()),
         upgrade: Some(true),
         filesystem: native_fs.clone(),
+        http_client: Some(http_io), // Pass the http_client here
     };
     plugins.push(Box::new(HttpUriPlugin::new(http_uri_options)));
 

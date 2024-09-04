@@ -112,7 +112,7 @@ impl AsyncWritableFileSystem for MockFileSystem {
 
     fn remove_dir_all(&self, dir: &Path) -> BoxFuture<'_, Result<()>> {
         let dir_ref = dir.to_path_buf();
-        dbg!("Async removing directory recursively: {}", dir_ref.display());
+        dbg!(dir_ref.display());
         let directories = self.directories.clone();
         Box::pin(async move {
             let mut directories = directories.write().await;
@@ -125,7 +125,7 @@ impl AsyncWritableFileSystem for MockFileSystem {
 impl AsyncReadableFileSystem for MockFileSystem {
     fn read(&self, file: &Path) -> BoxFuture<'_, rspack_fs::Result<Vec<u8>>> {
         let file_ref = file.to_path_buf();
-        dbg!("Async reading file: {}", file_ref.display());
+        dbg!(file_ref.display());
         let files = self.files.clone();
         Box::pin(async move {
             let files = files.read().await;

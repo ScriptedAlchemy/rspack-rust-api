@@ -17,6 +17,7 @@ mod edge_compile;
 mod memory_fs;
 mod system_fs;
 mod macros;
+mod http_io;
 
 
 // An async function that consumes a request, executes the rspack file, and returns a response.
