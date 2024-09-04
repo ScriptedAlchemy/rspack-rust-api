@@ -23,7 +23,8 @@ use crate::memory_fs::MockFileSystem;
 use crate::system_fs::RealFileSystem;
 use rspack_fs::AsyncFileSystem;
 use rspack_fs::AsyncNativeFileSystem;
-use crate::http_io::http_io;
+use crate::http_io;
+use crate::http_io::ReqwestHttpClient;
 
 pub async fn compile(network_entry: Option<String>) -> HashMap<String, Vec<u8>> {
     let mock_fs = MockFileSystem::new();
@@ -183,7 +184,7 @@ pub async fn compile(network_entry: Option<String>) -> HashMap<String, Vec<u8>> 
                 }
             }
             let parent = dir.parent();
-            if parent is_none() {
+            if parent.is_none() {
                 dir = cwd.join(".cache/webpack");
                 break;
             }
@@ -202,15 +203,17 @@ pub async fn compile(network_entry: Option<String>) -> HashMap<String, Vec<u8>> 
 
     let lockfile_location = cache_location.clone().map(|loc| format!("{}/lockfile.json", loc));
 
+    let http_client = Arc::new(ReqwestHttpClient::new());
+
     let http_uri_options = HttpUriPluginOptions {
         allowed_uris: HttpUriOptionsAllowedUris,
         cache_location: cache_location.clone(),
         frozen: Some(true),
-        lockfile_location,
+        lockfile_location, 
         proxy: Some("http://proxy.example.com".to_string()),
         upgrade: Some(true),
         filesystem: native_fs.clone(),
-        http_client: Some(http_io), // Pass the http_client here
+        http_client: Some(http_client)
     };
     plugins.push(Box::new(HttpUriPlugin::new(http_uri_options)));
 
