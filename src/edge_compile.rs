@@ -7,9 +7,9 @@ use rspack_core::{
     ResolverFactory,
     CacheOptions, ChunkLoading, ChunkLoadingType, Compiler, CompilerOptions, Context,
     CrossOriginLoading, DevServerOptions, EntryOptions, Environment, Experiments, Filename,
-    HashDigest, HashFunction, HashSalt, JavascriptParserOptions, MangleExportsOption, Mode,
-    ModuleOptions, ModuleType, Optimization, OutputOptions, PathInfo, ParserOptions,
-    ParserOptionsByModuleType, Plugin, PublicPath, Resolve, SideEffectOption, SnapshotOptions,
+    HashDigest, HashFunction, HashSalt, MangleExportsOption, Mode,
+    ModuleOptions, Optimization, OutputOptions, PathInfo,
+    Plugin, PublicPath, Resolve, SideEffectOption, SnapshotOptions,
     StatsOptions, Target, UsedExportsOption, WasmLoading
 };
 use rspack_plugin_entry::EntryPlugin;
@@ -22,30 +22,28 @@ use std::fs;
 use crate::memory_fs::MockFileSystem;
 use crate::system_fs::RealFileSystem;
 use rspack_fs::AsyncFileSystem;
-use rspack_fs::AsyncNativeFileSystem;
-use crate::http_io;
 use crate::http_io::ReqwestHttpClient;
+use rspack_paths::{Utf8PathBuf};
 
 pub async fn compile(network_entry: Option<String>) -> HashMap<String, Vec<u8>> {
     let mock_fs = MockFileSystem::new();
     let output_filesystem = mock_fs.clone();
     let root = env!("CARGO_MANIFEST_DIR");
     let context = Context::new(root.to_string().into());
-    let dist_dir: std::path::PathBuf = Path::new(root).join("./dist");
+    let dist_dir: Utf8PathBuf = Utf8PathBuf::from_path_buf(Path::new(root).join("./dist")).unwrap();
     if !dist_dir.exists() {
         fs::create_dir_all(&dist_dir).expect("Failed to create dist directory");
     }
-    let dist_dir = dist_dir.canonicalize().unwrap();
+    let dist_dir = Utf8PathBuf::from_path_buf(dist_dir.canonicalize().unwrap()).unwrap();
     let entry_file: String = network_entry
         .as_deref()
         .filter(|entry| !entry.is_empty())
         .map_or_else(
             || {
-                Path::new(root)
+                Utf8PathBuf::from_path_buf(Path::new(root)
                     .join("./fixtures/index.js")
                     .canonicalize()
-                    .unwrap()
-                    .to_string_lossy()
+                    .unwrap()).unwrap()
                     .to_string()
             },
             |entry| entry.to_string(),
@@ -111,30 +109,9 @@ pub async fn compile(network_entry: Option<String>) -> HashMap<String, Vec<u8>> 
             extensions: Some(vec![".js".to_string()]),
             ..Default::default()
         },
-        module: ModuleOptions {
-            parser: Some(ParserOptionsByModuleType::from_iter([(
-                ModuleType::JsAuto,
-                ParserOptions::Javascript(JavascriptParserOptions {
-                    dynamic_import_mode: rspack_core::DynamicImportMode::Eager,
-                    dynamic_import_prefetch: rspack_core::JavascriptParserOrder::Order(1),
-                    import_meta: false,
-                    dynamic_import_fetch_priority: Some(rspack_core::DynamicImportFetchPriority::Auto),
-                    url: rspack_core::JavascriptParserUrl::Disable,
-                    expr_context_critical: false,
-                    wrapped_context_critical: false,
-                    exports_presence: None,
-                    import_exports_presence: None,
-                    reexport_exports_presence: None,
-                    strict_export_presence: false,
-                    worker: vec![],
-                    dynamic_import_preload: rspack_core::JavascriptParserOrder::Order(0),
-                    override_strict: None,
-                }),
-            )])),
-            ..Default::default()
-        },
+        module: ModuleOptions::default(),
         stats: StatsOptions::default(),
-        snapshot: SnapshotOptions,
+        snapshot: SnapshotOptions::default(),
         cache: CacheOptions::default(),
         experiments: Experiments::default(),
         optimization: Optimization {
@@ -219,7 +196,7 @@ pub async fn compile(network_entry: Option<String>) -> HashMap<String, Vec<u8>> 
 
     let resolver_factory = Arc::new(ResolverFactory::new(compiler_options.resolve.clone()));
     let loader_resolver_factory = Arc::new(ResolverFactory::new(compiler_options.resolve_loader.clone()));
-    let mut compiler = Compiler::new(compiler_options, plugins, mock_fs, resolver_factory, loader_resolver_factory);
+    let mut compiler = Compiler::new(compiler_options, plugins, Box::new(mock_fs), Some(resolver_factory), Some(loader_resolver_factory));
     println!("Compiling with entry: {}", entry_file);
     compiler.build().await.expect("build failed");
 
