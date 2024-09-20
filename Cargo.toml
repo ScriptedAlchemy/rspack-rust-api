@@ -4,15 +4,15 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-rspack_plugin_schemes= { path = "../rspack/crates/rspack_plugin_schemes" }
-rspack_ids= { path = "../rspack/crates/rspack_ids" }
-rspack_plugin_javascript= { path = "../rspack/crates/rspack_plugin_javascript" }
-rspack_core = { path = "../rspack/crates/rspack_core" }
-rspack_paths = { path = "../rspack/crates/rspack_paths" }
-rspack_plugin_entry = { path = "../rspack/crates/rspack_plugin_entry" }
-rspack_fs = { path = "../rspack/crates/rspack_fs" }
-serde_json = "1.0.128"
-tokio = {features = ["full"], version = "1.38.0"}
+rspack_plugin_schemes = { git = "https://github.com/web-infra-dev/rspack", branch = "feat/rspack_http_with-resolve" }
+rspack_ids = { git = "https://github.com/web-infra-dev/rspack", branch = "feat/rspack_http_with-resolve" }
+rspack_plugin_javascript = { git = "https://github.com/web-infra-dev/rspack", branch = "feat/rspack_http_with-resolve" }
+rspack_core = { git = "https://github.com/web-infra-dev/rspack", branch = "feat/rspack_http_with-resolve" }
+rspack_paths = { git = "https://github.com/web-infra-dev/rspack", branch = "feat/rspack_http_with-resolve" }
+rspack_plugin_entry = { git = "https://github.com/web-infra-dev/rspack", branch = "feat/rspack_http_with-resolve" }
+rspack_fs = { git = "https://github.com/web-infra-dev/rspack", branch = "feat/rspack_http_with-resolve" }
+serde_json = "1.0.113"
+tokio = { features = ["full"], version = "1.38.0" }
 hyper = { version = "1", features = ["full"] }
 http-body-util = "0.1"
 hyper-util = { version = "0.1", features = ["full"] }
@@ -23,7 +23,7 @@ url = "2.5.2"
 futures = "0.3.30"
 async-trait = "0.1.80"
 anyhow = "1.0.86"
-reqwest = { version = "0.12.7" } 
+reqwest = { version = "0.12.7" }
 
 [features]
 async = []
