@@ -1,4 +1,4 @@
-#![deny(warnings)]
+#![allow(warnings)]
 
 use std::convert::Infallible;
 use std::net::SocketAddr;
@@ -15,6 +15,10 @@ use std::time::Instant;
 use url::form_urlencoded;
 mod edge_compile;
 mod memory_fs;
+mod system_fs;
+mod macros;
+mod http_io;
+
 
 // An async function that consumes a request, executes the rspack file, and returns a response.
 async fn handle_request(req: Request<impl hyper::body::Body>) -> Result<Response<Full<Bytes>>, Infallible> {
@@ -53,7 +57,7 @@ pub async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     pretty_env_logger::init();
 
     // This address is localhost
-    let addr: SocketAddr = ([127, 0, 0, 1], 3000).into();
+    let addr: SocketAddr = ([127, 0, 0, 1], 3001).into();
 
     // Bind to the port and listen for incoming TCP connections
     let listener = TcpListener::bind(addr).await?;

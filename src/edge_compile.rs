@@ -1,65 +1,60 @@
-#![deny(warnings)]
+use std::sync::Arc;
 
 use std::path::Path;
-use std::collections::HashMap; // Add this import
-use rspack_ids::NaturalChunkIdsPlugin;
-use rspack_ids::NamedModuleIdsPlugin;
-use rspack_core::JavascriptParserOptions;
-use rspack_core::ModuleType;
-use rspack_core::ParserOptions;
-use rspack_core::ParserOptionsByModuleType;
+use std::collections::HashMap;
+use rspack_ids::{NaturalChunkIdsPlugin, NamedModuleIdsPlugin};
 use rspack_core::{
-    Builtins, CacheOptions, ChunkLoading, ChunkLoadingType, Compiler, CompilerOptions, Context,
+    ResolverFactory,
+    CacheOptions, ChunkLoading, ChunkLoadingType, Compiler, CompilerOptions, Context,
     CrossOriginLoading, DevServerOptions, EntryOptions, Environment, Experiments, Filename,
-    HashDigest, HashFunction, HashSalt, MangleExportsOption, Mode, ModuleOptions, Optimization,
-    OutputOptions, PathInfo, Plugin, PublicPath, Resolve, SideEffectOption, SnapshotOptions,
-    StatsOptions, Target, UsedExportsOption, WasmLoading,
+    HashDigest, HashFunction, HashSalt, MangleExportsOption, Mode,
+    ModuleOptions, Optimization, OutputOptions, PathInfo,
+    Plugin, PublicPath, Resolve, SideEffectOption, SnapshotOptions,
+    StatsOptions, Target, UsedExportsOption, WasmLoading
 };
-// use tokio::sync::RwLock;
-// use rspack_fs::cfg_async;
-
-// use rspack_plugin_externals::http_externals_rspack_plugin;
 use rspack_plugin_entry::EntryPlugin;
 use rspack_plugin_javascript::JsPlugin;
-use rspack_plugin_schemes::DataUriPlugin;
-use rspack_plugin_schemes::HttpUriPlugin;
-use serde_json::Map;
-use serde_json::Value;
+use rspack_plugin_schemes::{
+    DataUriPlugin, HttpUriPlugin, HttpUriPluginOptions, HttpUriOptionsAllowedUris
+};
+use serde_json::{Map, Value};
 use std::fs;
-// use rspack_fs::AsyncReadableFileSystem;
 use crate::memory_fs::MockFileSystem;
+use crate::system_fs::RealFileSystem;
+use rspack_fs::AsyncFileSystem;
+use crate::http_io::ReqwestHttpClient;
+use rspack_paths::{Utf8PathBuf};
 
 pub async fn compile(network_entry: Option<String>) -> HashMap<String, Vec<u8>> {
-    let instance = MockFileSystem::new(); // Directly assign the instance
-    let output_filesystem = instance.clone();
+    let mock_fs = MockFileSystem::new();
+    let output_filesystem = mock_fs.clone();
     let root = env!("CARGO_MANIFEST_DIR");
-    let context = Context::new(root.to_string());
-    let dist: std::path::PathBuf = Path::new(root).join("./dist");
-    if !dist.exists() {
-        fs::create_dir_all(&dist).expect("Failed to create dist directory");
+    let context = Context::new(root.to_string().into());
+    let dist_dir: Utf8PathBuf = Utf8PathBuf::from_path_buf(Path::new(root).join("./dist")).unwrap();
+    if !dist_dir.exists() {
+        fs::create_dir_all(&dist_dir).expect("Failed to create dist directory");
     }
-    let dist = dist.canonicalize().unwrap();
-    let entry_request: String = network_entry
+    let dist_dir = Utf8PathBuf::from_path_buf(dist_dir.canonicalize().unwrap()).unwrap();
+    let entry_file: String = network_entry
         .as_deref()
         .filter(|entry| !entry.is_empty())
         .map_or_else(
             || {
-                Path::new(root)
+                Utf8PathBuf::from_path_buf(Path::new(root)
                     .join("./fixtures/index.js")
                     .canonicalize()
-                    .unwrap()
-                    .to_string_lossy()
+                    .unwrap()).unwrap()
                     .to_string()
             },
             |entry| entry.to_string(),
         );
     dbg!(network_entry.clone());
 
-    let options = CompilerOptions {
+    let compiler_options = CompilerOptions {
         context: root.into(),
         dev_server: DevServerOptions::default(),
         output: OutputOptions {
-            path: dist,
+            path: dist_dir,
             pathinfo: PathInfo::Bool(false),
             clean: false,
             public_path: PublicPath::Auto,
@@ -82,6 +77,7 @@ pub async fn compile(network_entry: Option<String>) -> HashMap<String, Vec<u8>> 
             strict_module_error_handling: false,
             global_object: String::from("window"),
             import_function_name: String::from("import"),
+            import_meta_name: String::from("import.meta"),
             iife: false,
             module: false,
             trusted_types: None,
@@ -99,6 +95,9 @@ pub async fn compile(network_entry: Option<String>) -> HashMap<String, Vec<u8>> 
                 r#const: Some(true),
                 arrow_function: Some(true),
             },
+            charset: false,
+            chunk_load_timeout: 120000,
+            css_head_data_compression: false,
         },
         target: Target::new(&vec!["es2022".to_string()]).unwrap(),
         mode: Mode::Development,
@@ -110,33 +109,14 @@ pub async fn compile(network_entry: Option<String>) -> HashMap<String, Vec<u8>> 
             extensions: Some(vec![".js".to_string()]),
             ..Default::default()
         },
-        module: ModuleOptions {
-            parser: Some(ParserOptionsByModuleType::from_iter([(
-                ModuleType::JsAuto,
-                ParserOptions::Javascript(JavascriptParserOptions {
-                    dynamic_import_mode: rspack_core::DynamicImportMode::Eager,
-                    dynamic_import_prefetch: rspack_core::JavascriptParserOrder::Order(1),
-                    dynamic_import_preload: rspack_core::JavascriptParserOrder::Order(1),
-                    url: rspack_core::JavascriptParserUrl::Disable,
-                    expr_context_critical: false,
-                    wrapped_context_critical: false,
-                    exports_presence: None,
-                    import_exports_presence: None,
-                    reexport_exports_presence: None,
-                    strict_export_presence: false,
-                    worker: vec![],
-                }),
-            )])),
-            //    generator: Some(GeneratorOptionsByModuleType::from_iter(generator.iter())),
-            ..Default::default()
-        },
+        module: ModuleOptions::default(),
         stats: StatsOptions::default(),
-        snapshot: SnapshotOptions,
+        snapshot: SnapshotOptions::default(),
         cache: CacheOptions::default(),
         experiments: Experiments::default(),
         optimization: Optimization {
             concatenate_modules: false,
-            remove_available_modules: false, // Fixed the typo here
+            remove_available_modules: false,
             provided_exports: false,
             mangle_exports: MangleExportsOption::False,
             inner_graph: true,
@@ -145,15 +125,15 @@ pub async fn compile(network_entry: Option<String>) -> HashMap<String, Vec<u8>> 
         },
         profile: false,
         bail: false,
-        builtins: Builtins::default(),
         __references: Map::<String, Value>::new(),
         node: None,
     };
     let mut plugins: Vec<Box<dyn Plugin>> = Vec::new();
 
-    let plugin_options = EntryOptions {
+    let entry_plugin_options = EntryOptions {
         name: Some("main".to_string()),
         runtime: None,
+        layer: None,
         chunk_loading: None,
         async_chunks: None,
         public_path: None,
@@ -162,35 +142,67 @@ pub async fn compile(network_entry: Option<String>) -> HashMap<String, Vec<u8>> 
         library: None,
         depend_on: None,
     };
-    let entry_plugin = Box::new(EntryPlugin::new(context, entry_request.clone(), plugin_options));
-    plugins.push(Box::<JsPlugin>::default());
+    let entry_plugin = Box::new(EntryPlugin::new(context, entry_file.clone(), entry_plugin_options));
+    plugins.push(Box::new(JsPlugin::default()));
     plugins.push(entry_plugin);
-    // plugins.push(http_externals_rspack_plugin(false, true));
-    plugins.push(Box::<NaturalChunkIdsPlugin>::default());
-    plugins.push(Box::<NamedModuleIdsPlugin>::default());
-    plugins.push(Box::<DataUriPlugin>::default());
-    plugins.push(Box::<HttpUriPlugin>::default());
+    plugins.push(Box::new(NaturalChunkIdsPlugin::default()));
+    plugins.push(Box::new(NamedModuleIdsPlugin::default()));
+    plugins.push(Box::new(DataUriPlugin::default()));
 
-    let mut compiler = Compiler::new(options, plugins, instance);
+    let native_fs: Arc<dyn AsyncFileSystem + Send + Sync> = Arc::new(RealFileSystem::new());
 
-    println!("Compiling with entry: {}", entry_request);
+    let cache_location = Some({
+        let cwd = std::env::current_dir().unwrap();
+        let mut dir = cwd.clone();
+        loop {
+            if let Ok(metadata) = std::fs::metadata(dir.join("package.json")) {
+                if metadata.is_file() {
+                    break;
+                }
+            }
+            let parent = dir.parent();
+            if parent.is_none() {
+                dir = cwd.join(".cache/webpack");
+                break;
+            }
+            dir = parent.unwrap().to_path_buf();
+        }
+        if std::env::var("pnp").unwrap_or_default() == "1" {
+            dir.join(".pnp/.cache/webpack")
+        } else if std::env::var("pnp").unwrap_or_default() == "3" {
+            dir.join(".yarn/.cache/webpack")
+        } else {
+            dir.join("node_modules/.cache/webpack")
+        }
+        .to_string_lossy()
+        .to_string()
+    });
+
+    let lockfile_location = cache_location.clone().map(|loc| format!("{}/lockfile.json", loc));
+
+    let http_client = Arc::new(ReqwestHttpClient::new());
+
+    let http_uri_options = HttpUriPluginOptions {
+        allowed_uris: HttpUriOptionsAllowedUris,
+        cache_location: cache_location.clone(),
+        frozen: Some(true),
+        lockfile_location, 
+        proxy: Some("http://proxy.example.com".to_string()),
+        upgrade: Some(true),
+        filesystem: native_fs.clone(),
+        http_client: Some(http_client)
+    };
+    plugins.push(Box::new(HttpUriPlugin::new(http_uri_options)));
+
+    let resolver_factory = Arc::new(ResolverFactory::new(compiler_options.resolve.clone()));
+    let loader_resolver_factory = Arc::new(ResolverFactory::new(compiler_options.resolve_loader.clone()));
+    let mut compiler = Compiler::new(compiler_options, plugins, Box::new(mock_fs), Some(resolver_factory), Some(loader_resolver_factory));
+    println!("Compiling with entry: {}", entry_file);
     compiler.build().await.expect("build failed");
 
-    // Dump all files in the output_filesystem
-    let files = output_filesystem.files.read().await;
-    // for (path, content) in files.iter() {
-    //     println!("File path: {:?}", path);
-    //     println!("File content: {:?}", String::from_utf8_lossy(content));
-    // }
-    //
-    // // Dump all directories in the output_filesystem
-    // let directories = output_filesystem.directories.read().await;
-    // for path in directories.keys() {
-    //     println!("Directory path: {:?}", path);
-    // }
+    let compiled_files = output_filesystem.files.read().await;
 
-    // Return the files HashMap
-    files.iter()
+    compiled_files.iter()
         .map(|(path, content)| (path.to_string_lossy().to_string(), content.clone()))
         .collect()
 }
