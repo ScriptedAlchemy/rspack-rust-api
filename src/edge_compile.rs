@@ -109,9 +109,11 @@ pub async fn compile(network_entry: Option<String>) -> HashMap<String, Vec<u8>> 
             extensions: Some(vec![".js".to_string()]),
             ..Default::default()
         },
-        module: ModuleOptions::default(),
+        module: ModuleOptions {
+            ..Default::default()
+        },
         stats: StatsOptions::default(),
-        snapshot: SnapshotOptions::default(),
+        snapshot: SnapshotOptions,
         cache: CacheOptions::default(),
         experiments: Experiments::default(),
         optimization: Optimization {
