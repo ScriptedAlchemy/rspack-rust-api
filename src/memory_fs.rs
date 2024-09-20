@@ -2,7 +2,7 @@
 
 use std::{
     collections::HashMap,
-    path::{PathBuf},
+    path::PathBuf,
     sync::Arc,
 };
 use rspack_paths::Utf8Path;
@@ -32,7 +32,7 @@ impl MockFileSystem {
 
 impl WritableFileSystem for MockFileSystem {
     fn create_dir(&self, dir: &Utf8Path) -> Result<()> {
-        let dir_ref = dir.to_path_buf();
+        let dir_ref: PathBuf = dir.to_path_buf().into();
         dbg!("Creating directory: {}", dir_ref.display());
         let mut directories = self.directories.blocking_write();
         directories.insert(dir_ref, ());
@@ -40,7 +40,7 @@ impl WritableFileSystem for MockFileSystem {
     }
 
     fn create_dir_all(&self, dir: &Utf8Path) -> Result<()> {
-        let dir_ref = dir.to_path_buf();
+        let dir_ref: PathBuf = dir.to_path_buf().into();
         dbg!("Creating directory recursively: {}", dir_ref.display());
         let mut directories = self.directories.blocking_write();
         directories.insert(dir_ref, ());
@@ -48,7 +48,7 @@ impl WritableFileSystem for MockFileSystem {
     }
 
     fn write(&self, file: &Utf8Path, data: &[u8]) -> Result<()> {
-        let file_ref = file.to_path_buf();
+        let file_ref: PathBuf = file.to_path_buf().into();
         dbg!("Writing to file: {}", file_ref.display());
         let mut files = self.files.blocking_write();
         files.insert(file_ref, data.to_vec());
@@ -58,7 +58,7 @@ impl WritableFileSystem for MockFileSystem {
 
 impl ReadableFileSystem for MockFileSystem {
     fn read(&self, file: &Utf8Path) -> Result<Vec<u8>> {
-        let file_ref = file.to_path_buf();
+        let file_ref: PathBuf = file.to_path_buf().into();
         dbg!("Reading file: {}", file_ref.display());
         let files = self.files.blocking_read();
         files.get(&file_ref).cloned().ok_or_else(|| rspack_fs::Error::Io(std::io::Error::new(std::io::ErrorKind::NotFound, "File not found")))
@@ -67,7 +67,7 @@ impl ReadableFileSystem for MockFileSystem {
 
 impl AsyncWritableFileSystem for MockFileSystem {
     fn create_dir(&self, dir: &Utf8Path) -> BoxFuture<'_, Result<()>> {
-        let dir_ref = dir.to_path_buf();
+        let dir_ref: PathBuf = dir.to_path_buf().into();
         dbg!("Async creating directory: {}", dir_ref.display());
         let directories = self.directories.clone();
         Box::pin(async move {
@@ -78,7 +78,7 @@ impl AsyncWritableFileSystem for MockFileSystem {
     }
 
     fn create_dir_all(&self, dir: &Utf8Path) -> BoxFuture<'_, Result<()>> {
-        let dir_ref = dir.to_path_buf();
+        let dir_ref: PathBuf = dir.to_path_buf().into();
         dbg!("Async creating directory recursively: {}", dir_ref.display());
         let directories = self.directories.clone();
         Box::pin(async move {
@@ -89,7 +89,7 @@ impl AsyncWritableFileSystem for MockFileSystem {
     }
 
     fn write(&self, file: &Utf8Path, data: &[u8]) -> BoxFuture<'_, Result<()>> {
-        let file_ref = file.to_path_buf();
+        let file_ref: PathBuf = file.to_path_buf().into();
         let data = data.to_vec();
         dbg!("Async writing to file: {}", file_ref.display());
         let files = self.files.clone();
@@ -101,7 +101,7 @@ impl AsyncWritableFileSystem for MockFileSystem {
     }
 
     fn remove_file(&self, file: &Utf8Path) -> BoxFuture<'_, Result<()>> {
-        let file_ref = file.to_path_buf();
+        let file_ref: PathBuf = file.to_path_buf().into();
         dbg!("Async removing file: {}", file_ref.display());
         let files = self.files.clone();
         Box::pin(async move {
@@ -112,7 +112,7 @@ impl AsyncWritableFileSystem for MockFileSystem {
     }
 
     fn remove_dir_all(&self, dir: &Utf8Path) -> BoxFuture<'_, Result<()>> {
-        let dir_ref = dir.to_path_buf();
+        let dir_ref: PathBuf = dir.to_path_buf().into();
         dbg!(dir_ref.display());
         let directories = self.directories.clone();
         Box::pin(async move {
@@ -125,7 +125,7 @@ impl AsyncWritableFileSystem for MockFileSystem {
 
 impl AsyncReadableFileSystem for MockFileSystem {
     fn read(&self, file: &Utf8Path) -> BoxFuture<'_, rspack_fs::Result<Vec<u8>>> {
-        let file_ref = file.to_path_buf();
+        let file_ref: PathBuf = file.to_path_buf().into();
         dbg!(file_ref.display());
         let files = self.files.clone();
         Box::pin(async move {
