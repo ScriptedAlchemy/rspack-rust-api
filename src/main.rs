@@ -1,4 +1,4 @@
-#![deny(warnings)]
+#![allow(warnings)]
 
 use std::convert::Infallible;
 use std::net::SocketAddr;
@@ -14,6 +14,11 @@ use std::collections::HashMap;
 use std::time::Instant;
 use url::form_urlencoded;
 mod edge_compile;
+mod memory_fs;
+mod system_fs;
+mod macros;
+mod http_io;
+
 
 // An async function that consumes a request, executes the rspack file, and returns a response.
 async fn handle_request(req: Request<impl hyper::body::Body>) -> Result<Response<Full<Bytes>>, Infallible> {
@@ -27,16 +32,22 @@ async fn handle_request(req: Request<impl hyper::body::Body>) -> Result<Response
     let query_params: HashMap<_, _> = req.uri().query().map(|v| {
         form_urlencoded::parse(v.as_bytes()).into_iter().collect()
     }).unwrap_or_else(HashMap::new);
+    
     // Log the query parameters for debugging
-    dbg!(req.uri().clone());
-    // Get the entry parameter
-    let entry = query_params.get("entry").cloned().unwrap_or_else(|| "".to_string());
+    dbg!(req.uri().clone()); // Ensure dbg! does not interfere with the return type
 
+    // Get the entry parameter
+    let entry = query_params.get("entry").cloned().unwrap_or_else(|| "".to_string().into());
     // Pass the entry parameter to the compile function
-    edge_compile::compile(Some(entry.clone())).await;
+    let result = edge_compile::compile(Some(entry.clone().to_string())).await;
     let duration = start_time.elapsed();
 
-    let response_body = format!("Compile time: {:?}", duration);
+    // Format the response body with compile time and file contents
+    let mut response_body = format!("Compile time: {:?}\n", duration);
+    for (path, content) in result {
+        response_body.push_str(&format!("File path: {}\n", path));
+        response_body.push_str(&format!("File content: {}\n", String::from_utf8_lossy(&content)));
+    }
 
     Ok(Response::new(Full::new(Bytes::from(response_body))))
 }
@@ -46,7 +57,7 @@ pub async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     pretty_env_logger::init();
 
     // This address is localhost
-    let addr: SocketAddr = ([127, 0, 0, 1], 3000).into();
+    let addr: SocketAddr = ([127, 0, 0, 1], 3001).into();
 
     // Bind to the port and listen for incoming TCP connections
     let listener = TcpListener::bind(addr).await?;

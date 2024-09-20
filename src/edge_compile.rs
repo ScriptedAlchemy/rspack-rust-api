@@ -1,35 +1,42 @@
+use std::sync::Arc;
+
 use std::path::Path;
-use rspack_ids::NaturalChunkIdsPlugin;
-use rspack_ids::NamedModuleIdsPlugin;
-use rspack_core::JavascriptParserOptions;
-use rspack_core::ModuleType;
-use rspack_core::ParserOptions;
-use rspack_core::ParserOptionsByModuleType;
+use std::collections::HashMap;
+use rspack_ids::{NaturalChunkIdsPlugin, NamedModuleIdsPlugin};
 use rspack_core::{
-    Builtins, CacheOptions, ChunkLoading, ChunkLoadingType, Compiler, CompilerOptions, Context,
+    ResolverFactory,
+    CacheOptions, ChunkLoading, ChunkLoadingType, Compiler, CompilerOptions, Context,
     CrossOriginLoading, DevServerOptions, EntryOptions, Environment, Experiments, Filename,
-    HashDigest, HashFunction, HashSalt, MangleExportsOption, Mode, ModuleOptions, Optimization,
-    OutputOptions, PathInfo, Plugin, PublicPath, Resolve, SideEffectOption, SnapshotOptions,
-    StatsOptions, Target, UsedExportsOption, WasmLoading,
+    HashDigest, HashFunction, HashSalt, JavascriptParserOptions, MangleExportsOption, Mode,
+    ModuleOptions, ModuleType, Optimization, OutputOptions, PathInfo, ParserOptions,
+    ParserOptionsByModuleType, Plugin, PublicPath, Resolve, SideEffectOption, SnapshotOptions,
+    StatsOptions, Target, UsedExportsOption, WasmLoading
 };
-use rspack_fs::AsyncNativeFileSystem;
 use rspack_plugin_entry::EntryPlugin;
 use rspack_plugin_javascript::JsPlugin;
-use rspack_plugin_schemes::DataUriPlugin;
-use serde_json::Map;
-use serde_json::Value;
+use rspack_plugin_schemes::{
+    DataUriPlugin, HttpUriPlugin, HttpUriPluginOptions, HttpUriOptionsAllowedUris
+};
+use serde_json::{Map, Value};
 use std::fs;
+use crate::memory_fs::MockFileSystem;
+use crate::system_fs::RealFileSystem;
+use rspack_fs::AsyncFileSystem;
+use rspack_fs::AsyncNativeFileSystem;
+use crate::http_io;
+use crate::http_io::ReqwestHttpClient;
 
-pub async fn compile(network_entry: Option<String>) {
-    let output_filesystem = AsyncNativeFileSystem {};
+pub async fn compile(network_entry: Option<String>) -> HashMap<String, Vec<u8>> {
+    let mock_fs = MockFileSystem::new();
+    let output_filesystem = mock_fs.clone();
     let root = env!("CARGO_MANIFEST_DIR");
-    let context = Context::new(root.to_string());
-    let dist: std::path::PathBuf = Path::new(root).join("./dist");
-    if !dist.exists() {
-        fs::create_dir_all(&dist).expect("Failed to create dist directory");
+    let context = Context::new(root.to_string().into());
+    let dist_dir: std::path::PathBuf = Path::new(root).join("./dist");
+    if !dist_dir.exists() {
+        fs::create_dir_all(&dist_dir).expect("Failed to create dist directory");
     }
-    let dist = dist.canonicalize().unwrap();
-    let entry_request: String = network_entry
+    let dist_dir = dist_dir.canonicalize().unwrap();
+    let entry_file: String = network_entry
         .as_deref()
         .filter(|entry| !entry.is_empty())
         .map_or_else(
@@ -45,11 +52,11 @@ pub async fn compile(network_entry: Option<String>) {
         );
     dbg!(network_entry.clone());
 
-    let options = CompilerOptions {
+    let compiler_options = CompilerOptions {
         context: root.into(),
         dev_server: DevServerOptions::default(),
         output: OutputOptions {
-            path: dist,
+            path: dist_dir,
             pathinfo: PathInfo::Bool(false),
             clean: false,
             public_path: PublicPath::Auto,
@@ -57,7 +64,7 @@ pub async fn compile(network_entry: Option<String>) {
             wasm_loading: WasmLoading::Disable,
             webassembly_module_filename: Filename::from(String::from("webassembly.js")),
             unique_name: "main".into(),
-            chunk_loading: ChunkLoading::Enable(ChunkLoadingType::Import),
+            chunk_loading: ChunkLoading::Enable(ChunkLoadingType::Jsonp),
             chunk_loading_global: String::new(),
             filename: Filename::from(String::from("[name].js")),
             chunk_filename: Filename::from(String::from("[id].js")),
@@ -72,8 +79,9 @@ pub async fn compile(network_entry: Option<String>) {
             strict_module_error_handling: false,
             global_object: String::from("window"),
             import_function_name: String::from("import"),
+            import_meta_name: String::from("import.meta"),
             iife: false,
-            module: true,
+            module: false,
             trusted_types: None,
             source_map_filename: Filename::from(String::from("[file].map")),
             hash_function: HashFunction::MD4,
@@ -89,6 +97,9 @@ pub async fn compile(network_entry: Option<String>) {
                 r#const: Some(true),
                 arrow_function: Some(true),
             },
+            charset: false,
+            chunk_load_timeout: 120000,
+            css_head_data_compression: false,
         },
         target: Target::new(&vec!["es2022".to_string()]).unwrap(),
         mode: Mode::Development,
@@ -106,7 +117,8 @@ pub async fn compile(network_entry: Option<String>) {
                 ParserOptions::Javascript(JavascriptParserOptions {
                     dynamic_import_mode: rspack_core::DynamicImportMode::Eager,
                     dynamic_import_prefetch: rspack_core::JavascriptParserOrder::Order(1),
-                    dynamic_import_preload: rspack_core::JavascriptParserOrder::Order(1),
+                    import_meta: false,
+                    dynamic_import_fetch_priority: Some(rspack_core::DynamicImportFetchPriority::Auto),
                     url: rspack_core::JavascriptParserUrl::Disable,
                     expr_context_critical: false,
                     wrapped_context_critical: false,
@@ -115,9 +127,10 @@ pub async fn compile(network_entry: Option<String>) {
                     reexport_exports_presence: None,
                     strict_export_presence: false,
                     worker: vec![],
+                    dynamic_import_preload: rspack_core::JavascriptParserOrder::Order(0),
+                    override_strict: None,
                 }),
             )])),
-            //    generator: Some(GeneratorOptionsByModuleType::from_iter(generator.iter())),
             ..Default::default()
         },
         stats: StatsOptions::default(),
@@ -135,15 +148,15 @@ pub async fn compile(network_entry: Option<String>) {
         },
         profile: false,
         bail: false,
-        builtins: Builtins::default(),
         __references: Map::<String, Value>::new(),
         node: None,
     };
     let mut plugins: Vec<Box<dyn Plugin>> = Vec::new();
 
-    let plugin_options = EntryOptions {
+    let entry_plugin_options = EntryOptions {
         name: Some("main".to_string()),
         runtime: None,
+        layer: None,
         chunk_loading: None,
         async_chunks: None,
         public_path: None,
@@ -152,13 +165,67 @@ pub async fn compile(network_entry: Option<String>) {
         library: None,
         depend_on: None,
     };
-    let entry_plugin = Box::new(EntryPlugin::new(context, entry_request.clone(), plugin_options));
-    plugins.push(Box::<JsPlugin>::default());
+    let entry_plugin = Box::new(EntryPlugin::new(context, entry_file.clone(), entry_plugin_options));
+    plugins.push(Box::new(JsPlugin::default()));
     plugins.push(entry_plugin);
-    plugins.push(Box::<NaturalChunkIdsPlugin>::default());
-    plugins.push(Box::<NamedModuleIdsPlugin>::default());
-    plugins.push(Box::<DataUriPlugin>::default());
-    let mut compiler = Compiler::new(options, plugins, output_filesystem);
-    println!("Compiling with entry: {}", entry_request);
+    plugins.push(Box::new(NaturalChunkIdsPlugin::default()));
+    plugins.push(Box::new(NamedModuleIdsPlugin::default()));
+    plugins.push(Box::new(DataUriPlugin::default()));
+
+    let native_fs: Arc<dyn AsyncFileSystem + Send + Sync> = Arc::new(RealFileSystem::new());
+
+    let cache_location = Some({
+        let cwd = std::env::current_dir().unwrap();
+        let mut dir = cwd.clone();
+        loop {
+            if let Ok(metadata) = std::fs::metadata(dir.join("package.json")) {
+                if metadata.is_file() {
+                    break;
+                }
+            }
+            let parent = dir.parent();
+            if parent.is_none() {
+                dir = cwd.join(".cache/webpack");
+                break;
+            }
+            dir = parent.unwrap().to_path_buf();
+        }
+        if std::env::var("pnp").unwrap_or_default() == "1" {
+            dir.join(".pnp/.cache/webpack")
+        } else if std::env::var("pnp").unwrap_or_default() == "3" {
+            dir.join(".yarn/.cache/webpack")
+        } else {
+            dir.join("node_modules/.cache/webpack")
+        }
+        .to_string_lossy()
+        .to_string()
+    });
+
+    let lockfile_location = cache_location.clone().map(|loc| format!("{}/lockfile.json", loc));
+
+    let http_client = Arc::new(ReqwestHttpClient::new());
+
+    let http_uri_options = HttpUriPluginOptions {
+        allowed_uris: HttpUriOptionsAllowedUris,
+        cache_location: cache_location.clone(),
+        frozen: Some(true),
+        lockfile_location, 
+        proxy: Some("http://proxy.example.com".to_string()),
+        upgrade: Some(true),
+        filesystem: native_fs.clone(),
+        http_client: Some(http_client)
+    };
+    plugins.push(Box::new(HttpUriPlugin::new(http_uri_options)));
+
+    let resolver_factory = Arc::new(ResolverFactory::new(compiler_options.resolve.clone()));
+    let loader_resolver_factory = Arc::new(ResolverFactory::new(compiler_options.resolve_loader.clone()));
+    let mut compiler = Compiler::new(compiler_options, plugins, mock_fs, resolver_factory, loader_resolver_factory);
+    println!("Compiling with entry: {}", entry_file);
     compiler.build().await.expect("build failed");
+
+    let compiled_files = output_filesystem.files.read().await;
+
+    compiled_files.iter()
+        .map(|(path, content)| (path.to_string_lossy().to_string(), content.clone()))
+        .collect()
 }
