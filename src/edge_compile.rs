@@ -10,7 +10,9 @@ use rspack_core::{
     HashDigest, HashFunction, HashSalt, MangleExportsOption, Mode,
     ModuleOptions, Optimization, OutputOptions, PathInfo,
     Plugin, PublicPath, Resolve, SideEffectOption, SnapshotOptions,
-    StatsOptions, Target, UsedExportsOption, WasmLoading
+    StatsOptions, Target, UsedExportsOption, WasmLoading,
+    DynamicImportMode, DynamicImportFetchPriority, JavascriptParserOrder, JavascriptParserUrl,
+    ParserOptionsMap, ModuleType, ParserOptions, JavascriptParserOptions
 };
 use rspack_plugin_entry::EntryPlugin;
 use rspack_plugin_javascript::JsPlugin;
@@ -110,6 +112,25 @@ pub async fn compile(network_entry: Option<String>) -> HashMap<String, Vec<u8>> 
             ..Default::default()
         },
         module: ModuleOptions {
+            parser: Some(ParserOptionsMap::from_iter([(
+                ModuleType::JsAuto.to_string(),
+                ParserOptions::Javascript(JavascriptParserOptions {
+                    dynamic_import_mode: DynamicImportMode::Eager,
+                    dynamic_import_prefetch: JavascriptParserOrder::Order(1),
+                    import_meta: false,
+                    dynamic_import_fetch_priority: Some(DynamicImportFetchPriority::Auto),
+                    url: JavascriptParserUrl::Disable,
+                    expr_context_critical: false,
+                    wrapped_context_critical: false,
+                    exports_presence: None,
+                    import_exports_presence: None,
+                    reexport_exports_presence: None,
+                    strict_export_presence: false,
+                    worker: vec![],
+                    dynamic_import_preload: JavascriptParserOrder::Order(0),
+                    override_strict: None,
+                }),
+            )])),
             ..Default::default()
         },
         stats: StatsOptions::default(),
