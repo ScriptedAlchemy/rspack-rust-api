@@ -10,7 +10,9 @@ use rspack_core::{
     HashDigest, HashFunction, HashSalt, MangleExportsOption, Mode,
     ModuleOptions, Optimization, OutputOptions, PathInfo,
     Plugin, PublicPath, Resolve, SideEffectOption, SnapshotOptions,
-    StatsOptions, Target, UsedExportsOption, WasmLoading
+    StatsOptions, Target, UsedExportsOption, WasmLoading,
+    DynamicImportMode, DynamicImportFetchPriority, JavascriptParserOrder, JavascriptParserUrl,
+    ParserOptionsMap, ModuleType, ParserOptions, JavascriptParserOptions,RspackFuture,Incremental
 };
 use rspack_plugin_entry::EntryPlugin;
 use rspack_plugin_javascript::JsPlugin;
@@ -24,6 +26,7 @@ use crate::system_fs::RealFileSystem;
 use rspack_fs::AsyncFileSystem;
 use crate::http_io::ReqwestHttpClient;
 use rspack_paths::{Utf8PathBuf};
+use rspack_fs::ReadableFileSystem;
 
 pub async fn compile(network_entry: Option<String>) -> HashMap<String, Vec<u8>> {
     let mock_fs = MockFileSystem::new();
@@ -109,11 +112,37 @@ pub async fn compile(network_entry: Option<String>) -> HashMap<String, Vec<u8>> 
             extensions: Some(vec![".js".to_string()]),
             ..Default::default()
         },
-        module: ModuleOptions::default(),
+        module: ModuleOptions {
+            parser: Some(ParserOptionsMap::from_iter([(
+                ModuleType::JsAuto.to_string(),
+                ParserOptions::Javascript(JavascriptParserOptions {
+                    dynamic_import_mode: Some(DynamicImportMode::Eager),
+                    dynamic_import_prefetch: Some(JavascriptParserOrder::Order(1)),
+                    import_meta: Some(false),
+                    dynamic_import_fetch_priority: Some(DynamicImportFetchPriority::Auto),
+                    url: Some(JavascriptParserUrl::Disable),
+                    expr_context_critical: Some(false),
+                    wrapped_context_critical: Some(false),
+                    exports_presence: None,
+                    import_exports_presence: None,
+                    reexport_exports_presence: None,
+                    strict_export_presence: Some(false),
+                    worker: Some(vec![]),
+                    dynamic_import_preload: Some(JavascriptParserOrder::Order(0)),
+                    override_strict: None,
+                }),
+            )])),
+            ..Default::default()
+        },
         stats: StatsOptions::default(),
-        snapshot: SnapshotOptions::default(),
+        snapshot: SnapshotOptions,
         cache: CacheOptions::default(),
-        experiments: Experiments::default(),
+        experiments: Experiments {
+            layers: false,
+            incremental: Incremental::Disabled,
+            top_level_await: false,
+            rspack_future: RspackFuture {},
+        },
         optimization: Optimization {
             concatenate_modules: false,
             remove_available_modules: false,
@@ -149,7 +178,9 @@ pub async fn compile(network_entry: Option<String>) -> HashMap<String, Vec<u8>> 
     plugins.push(Box::new(NamedModuleIdsPlugin::default()));
     plugins.push(Box::new(DataUriPlugin::default()));
 
-    let native_fs: Arc<dyn AsyncFileSystem + Send + Sync> = Arc::new(RealFileSystem::new());
+    let real_fs = Arc::new(RealFileSystem::new());
+    let native_fs_async: Arc<dyn AsyncFileSystem + Send + Sync> = real_fs.clone();
+    let native_fs_read: Arc<dyn ReadableFileSystem + Send + Sync> = real_fs.clone();
 
     let cache_location = Some({
         let cwd = std::env::current_dir().unwrap();
@@ -189,14 +220,27 @@ pub async fn compile(network_entry: Option<String>) -> HashMap<String, Vec<u8>> 
         lockfile_location, 
         proxy: Some("http://proxy.example.com".to_string()),
         upgrade: Some(true),
-        filesystem: native_fs.clone(),
+        filesystem: native_fs_async.clone(),
         http_client: Some(http_client)
     };
     plugins.push(Box::new(HttpUriPlugin::new(http_uri_options)));
 
-    let resolver_factory = Arc::new(ResolverFactory::new(compiler_options.resolve.clone()));
-    let loader_resolver_factory = Arc::new(ResolverFactory::new(compiler_options.resolve_loader.clone()));
-    let mut compiler = Compiler::new(compiler_options, plugins, Box::new(mock_fs), Some(resolver_factory), Some(loader_resolver_factory));
+    let resolver_factory = Arc::new(ResolverFactory::new(
+        compiler_options.resolve.clone(),
+        Arc::new(RealFileSystem::new()),
+    ));
+    let loader_resolver_factory = Arc::new(ResolverFactory::new(
+        compiler_options.resolve_loader.clone(),
+        Arc::new(RealFileSystem::new()),
+    ));
+    let mut compiler = Compiler::new(
+        compiler_options,
+        plugins,
+        Some(Box::new(output_filesystem.clone())),
+        Some(native_fs_read.clone()),
+        Some(resolver_factory),
+        Some(loader_resolver_factory),
+    );
     println!("Compiling with entry: {}", entry_file);
     compiler.build().await.expect("build failed");
 
