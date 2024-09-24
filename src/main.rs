@@ -15,6 +15,10 @@ use std::time::Instant;
 use url::form_urlencoded;
 mod edge_compile;
 mod memory_fs;
+mod system_fs;
+mod macros;
+mod http_io;
+
 
 // An async function that consumes a request, executes the rspack file, and returns a response.
 async fn handle_request(req: Request<impl hyper::body::Body>) -> Result<Response<Full<Bytes>>, Infallible> {

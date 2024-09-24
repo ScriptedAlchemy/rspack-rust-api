@@ -7,10 +7,12 @@ use rspack_core::{
     ResolverFactory,
     CacheOptions, ChunkLoading, ChunkLoadingType, Compiler, CompilerOptions, Context,
     CrossOriginLoading, DevServerOptions, EntryOptions, Environment, Experiments, Filename,
-    HashDigest, HashFunction, HashSalt, JavascriptParserOptions, MangleExportsOption, Mode,
-    ModuleOptions, ModuleType, Optimization, OutputOptions, PathInfo, ParserOptions,
-    ParserOptionsByModuleType, Plugin, PublicPath, Resolve, SideEffectOption, SnapshotOptions,
-    StatsOptions, Target, UsedExportsOption, WasmLoading
+    HashDigest, HashFunction, HashSalt, MangleExportsOption, Mode,
+    ModuleOptions, Optimization, OutputOptions, PathInfo,
+    Plugin, PublicPath, Resolve, SideEffectOption, SnapshotOptions,
+    StatsOptions, Target, UsedExportsOption, WasmLoading,
+    DynamicImportMode, DynamicImportFetchPriority, JavascriptParserOrder, JavascriptParserUrl,
+    ParserOptionsMap, ModuleType, ParserOptions, JavascriptParserOptions,RspackFuture,Incremental
 };
 use rspack_plugin_entry::EntryPlugin;
 use rspack_plugin_javascript::JsPlugin;
@@ -20,38 +22,42 @@ use rspack_plugin_schemes::{
 use serde_json::{Map, Value};
 use std::fs;
 use crate::memory_fs::MockFileSystem;
+use crate::system_fs::RealFileSystem;
+use rspack_fs::AsyncFileSystem;
+use crate::http_io::ReqwestHttpClient;
+use rspack_paths::{Utf8PathBuf};
+use rspack_fs::ReadableFileSystem;
 
 pub async fn compile(network_entry: Option<String>) -> HashMap<String, Vec<u8>> {
-    let instance = MockFileSystem::new();
-    let output_filesystem = instance.clone();
+    let mock_fs = MockFileSystem::new();
+    let output_filesystem = mock_fs.clone();
     let root = env!("CARGO_MANIFEST_DIR");
     let context = Context::new(root.to_string().into());
-    let dist: std::path::PathBuf = Path::new(root).join("./dist");
-    if !dist.exists() {
-        fs::create_dir_all(&dist).expect("Failed to create dist directory");
+    let dist_dir: Utf8PathBuf = Utf8PathBuf::from_path_buf(Path::new(root).join("./dist")).unwrap();
+    if !dist_dir.exists() {
+        fs::create_dir_all(&dist_dir).expect("Failed to create dist directory");
     }
-    let dist = dist.canonicalize().unwrap();
-    let entry_request: String = network_entry
+    let dist_dir = Utf8PathBuf::from_path_buf(dist_dir.canonicalize().unwrap()).unwrap();
+    let entry_file: String = network_entry
         .as_deref()
         .filter(|entry| !entry.is_empty())
         .map_or_else(
             || {
-                Path::new(root)
+                Utf8PathBuf::from_path_buf(Path::new(root)
                     .join("./fixtures/index.js")
                     .canonicalize()
-                    .unwrap()
-                    .to_string_lossy()
+                    .unwrap()).unwrap()
                     .to_string()
             },
             |entry| entry.to_string(),
         );
     dbg!(network_entry.clone());
 
-    let options = CompilerOptions {
+    let compiler_options = CompilerOptions {
         context: root.into(),
         dev_server: DevServerOptions::default(),
         output: OutputOptions {
-            path: dist,
+            path: dist_dir,
             pathinfo: PathInfo::Bool(false),
             clean: false,
             public_path: PublicPath::Auto,
@@ -74,6 +80,7 @@ pub async fn compile(network_entry: Option<String>) -> HashMap<String, Vec<u8>> 
             strict_module_error_handling: false,
             global_object: String::from("window"),
             import_function_name: String::from("import"),
+            import_meta_name: String::from("import.meta"),
             iife: false,
             module: false,
             trusted_types: None,
@@ -91,6 +98,9 @@ pub async fn compile(network_entry: Option<String>) -> HashMap<String, Vec<u8>> 
                 r#const: Some(true),
                 arrow_function: Some(true),
             },
+            charset: false,
+            chunk_load_timeout: 120000,
+            css_head_data_compression: false,
         },
         target: Target::new(&vec!["es2022".to_string()]).unwrap(),
         mode: Mode::Development,
@@ -103,21 +113,23 @@ pub async fn compile(network_entry: Option<String>) -> HashMap<String, Vec<u8>> 
             ..Default::default()
         },
         module: ModuleOptions {
-            parser: Some(ParserOptionsByModuleType::from_iter([(
-                ModuleType::JsAuto,
+            parser: Some(ParserOptionsMap::from_iter([(
+                ModuleType::JsAuto.to_string(),
                 ParserOptions::Javascript(JavascriptParserOptions {
-                    dynamic_import_mode: rspack_core::DynamicImportMode::Eager,
-                    dynamic_import_prefetch: rspack_core::JavascriptParserOrder::Order(1),
-                    dynamic_import_fetch_priority: Some(rspack_core::DynamicImportFetchPriority::Auto),
-                    url: rspack_core::JavascriptParserUrl::Disable,
-                    expr_context_critical: false,
-                    wrapped_context_critical: false,
+                    dynamic_import_mode: Some(DynamicImportMode::Eager),
+                    dynamic_import_prefetch: Some(JavascriptParserOrder::Order(1)),
+                    import_meta: Some(false),
+                    dynamic_import_fetch_priority: Some(DynamicImportFetchPriority::Auto),
+                    url: Some(JavascriptParserUrl::Disable),
+                    expr_context_critical: Some(false),
+                    wrapped_context_critical: Some(false),
                     exports_presence: None,
                     import_exports_presence: None,
                     reexport_exports_presence: None,
-                    strict_export_presence: false,
-                    worker: vec![],
-                    dynamic_import_preload: rspack_core::JavascriptParserOrder::Order(0),
+                    strict_export_presence: Some(false),
+                    worker: Some(vec![]),
+                    dynamic_import_preload: Some(JavascriptParserOrder::Order(0)),
+                    override_strict: None,
                 }),
             )])),
             ..Default::default()
@@ -125,7 +137,12 @@ pub async fn compile(network_entry: Option<String>) -> HashMap<String, Vec<u8>> 
         stats: StatsOptions::default(),
         snapshot: SnapshotOptions,
         cache: CacheOptions::default(),
-        experiments: Experiments::default(),
+        experiments: Experiments {
+            layers: false,
+            incremental: Incremental::Disabled,
+            top_level_await: false,
+            rspack_future: RspackFuture {},
+        },
         optimization: Optimization {
             concatenate_modules: false,
             remove_available_modules: false,
@@ -142,9 +159,10 @@ pub async fn compile(network_entry: Option<String>) -> HashMap<String, Vec<u8>> 
     };
     let mut plugins: Vec<Box<dyn Plugin>> = Vec::new();
 
-    let plugin_options = EntryOptions {
+    let entry_plugin_options = EntryOptions {
         name: Some("main".to_string()),
         runtime: None,
+        layer: None,
         chunk_loading: None,
         async_chunks: None,
         public_path: None,
@@ -153,12 +171,17 @@ pub async fn compile(network_entry: Option<String>) -> HashMap<String, Vec<u8>> 
         library: None,
         depend_on: None,
     };
-    let entry_plugin = Box::new(EntryPlugin::new(context, entry_request.clone(), plugin_options));
-    plugins.push(Box::<JsPlugin>::default());
+    let entry_plugin = Box::new(EntryPlugin::new(context, entry_file.clone(), entry_plugin_options));
+    plugins.push(Box::new(JsPlugin::default()));
     plugins.push(entry_plugin);
-    plugins.push(Box::<NaturalChunkIdsPlugin>::default());
-    plugins.push(Box::<NamedModuleIdsPlugin>::default());
-    plugins.push(Box::<DataUriPlugin>::default());
+    plugins.push(Box::new(NaturalChunkIdsPlugin::default()));
+    plugins.push(Box::new(NamedModuleIdsPlugin::default()));
+    plugins.push(Box::new(DataUriPlugin::default()));
+
+    let real_fs = Arc::new(RealFileSystem::new());
+    let native_fs_async: Arc<dyn AsyncFileSystem + Send + Sync> = real_fs.clone();
+    let native_fs_read: Arc<dyn ReadableFileSystem + Send + Sync> = real_fs.clone();
+
     let cache_location = Some({
         let cwd = std::env::current_dir().unwrap();
         let mut dir = cwd.clone();
@@ -188,27 +211,42 @@ pub async fn compile(network_entry: Option<String>) -> HashMap<String, Vec<u8>> 
 
     let lockfile_location = cache_location.clone().map(|loc| format!("{}/lockfile.json", loc));
 
+    let http_client = Arc::new(ReqwestHttpClient::new());
+
     let http_uri_options = HttpUriPluginOptions {
         allowed_uris: HttpUriOptionsAllowedUris,
         cache_location: cache_location.clone(),
         frozen: Some(true),
-        lockfile_location,
+        lockfile_location, 
         proxy: Some("http://proxy.example.com".to_string()),
         upgrade: Some(true),
+        filesystem: native_fs_async.clone(),
+        http_client: Some(http_client)
     };
     plugins.push(Box::new(HttpUriPlugin::new(http_uri_options)));
 
-    let resolver_factory = Arc::new(ResolverFactory::new(options.resolve.clone()));
-    let loader_resolver_factory = Arc::new(ResolverFactory::new(options.resolve_loader.clone()));
-    let mut compiler = Compiler::new(options, plugins, instance, resolver_factory, loader_resolver_factory);
-    println!("Compiling with entry: {}", entry_request);
+    let resolver_factory = Arc::new(ResolverFactory::new(
+        compiler_options.resolve.clone(),
+        Arc::new(RealFileSystem::new()),
+    ));
+    let loader_resolver_factory = Arc::new(ResolverFactory::new(
+        compiler_options.resolve_loader.clone(),
+        Arc::new(RealFileSystem::new()),
+    ));
+    let mut compiler = Compiler::new(
+        compiler_options,
+        plugins,
+        Some(Box::new(output_filesystem.clone())),
+        Some(native_fs_read.clone()),
+        Some(resolver_factory),
+        Some(loader_resolver_factory),
+    );
+    println!("Compiling with entry: {}", entry_file);
     compiler.build().await.expect("build failed");
 
-    // Dump all files in the output_filesystem
-    let files = output_filesystem.files.read().await;
+    let compiled_files = output_filesystem.files.read().await;
 
-    // Return the files HashMap
-    files.iter()
+    compiled_files.iter()
         .map(|(path, content)| (path.to_string_lossy().to_string(), content.clone()))
         .collect()
 }
