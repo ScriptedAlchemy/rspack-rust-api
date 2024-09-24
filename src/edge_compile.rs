@@ -12,7 +12,7 @@ use rspack_core::{
     Plugin, PublicPath, Resolve, SideEffectOption, SnapshotOptions,
     StatsOptions, Target, UsedExportsOption, WasmLoading,
     DynamicImportMode, DynamicImportFetchPriority, JavascriptParserOrder, JavascriptParserUrl,
-    ParserOptionsMap, ModuleType, ParserOptions, JavascriptParserOptions
+    ParserOptionsMap, ModuleType, ParserOptions, JavascriptParserOptions,RspackFuture,Incremental
 };
 use rspack_plugin_entry::EntryPlugin;
 use rspack_plugin_javascript::JsPlugin;
@@ -115,19 +115,19 @@ pub async fn compile(network_entry: Option<String>) -> HashMap<String, Vec<u8>> 
             parser: Some(ParserOptionsMap::from_iter([(
                 ModuleType::JsAuto.to_string(),
                 ParserOptions::Javascript(JavascriptParserOptions {
-                    dynamic_import_mode: DynamicImportMode::Eager,
-                    dynamic_import_prefetch: JavascriptParserOrder::Order(1),
-                    import_meta: false,
+                    dynamic_import_mode: Some(DynamicImportMode::Eager),
+                    dynamic_import_prefetch: Some(JavascriptParserOrder::Order(1)),
+                    import_meta: Some(false),
                     dynamic_import_fetch_priority: Some(DynamicImportFetchPriority::Auto),
-                    url: JavascriptParserUrl::Disable,
-                    expr_context_critical: false,
-                    wrapped_context_critical: false,
+                    url: Some(JavascriptParserUrl::Disable),
+                    expr_context_critical: Some(false),
+                    wrapped_context_critical: Some(false),
                     exports_presence: None,
                     import_exports_presence: None,
                     reexport_exports_presence: None,
-                    strict_export_presence: false,
-                    worker: vec![],
-                    dynamic_import_preload: JavascriptParserOrder::Order(0),
+                    strict_export_presence: Some(false),
+                    worker: Some(vec![]),
+                    dynamic_import_preload: Some(JavascriptParserOrder::Order(0)),
                     override_strict: None,
                 }),
             )])),
@@ -136,7 +136,12 @@ pub async fn compile(network_entry: Option<String>) -> HashMap<String, Vec<u8>> 
         stats: StatsOptions::default(),
         snapshot: SnapshotOptions,
         cache: CacheOptions::default(),
-        experiments: Experiments::default(),
+        experiments: Experiments {
+            layers: false,
+            incremental: Incremental::Disabled,
+            top_level_await: false,
+            rspack_future: RspackFuture {},
+        },
         optimization: Optimization {
             concatenate_modules: false,
             remove_available_modules: false,
@@ -217,9 +222,23 @@ pub async fn compile(network_entry: Option<String>) -> HashMap<String, Vec<u8>> 
     };
     plugins.push(Box::new(HttpUriPlugin::new(http_uri_options)));
 
-    let resolver_factory = Arc::new(ResolverFactory::new(compiler_options.resolve.clone()));
-    let loader_resolver_factory = Arc::new(ResolverFactory::new(compiler_options.resolve_loader.clone()));
-    let mut compiler = Compiler::new(compiler_options, plugins, Box::new(mock_fs), Some(resolver_factory), Some(loader_resolver_factory));
+    let resolver_factory = Arc::new(ResolverFactory::new(
+        compiler_options.resolve.clone(),
+        Arc::new(RealFileSystem::new()),
+    ));
+    let loader_resolver_factory = Arc::new(ResolverFactory::new(
+        compiler_options.resolve_loader.clone(),
+        Arc::new(RealFileSystem::new()),
+    ));
+    let mut compiler = Compiler::new(
+        compiler_options,
+        plugins,
+        Box::new(mock_fs),
+        Some(native_fs.clone()),
+        Some(output_filesystem.clone()),
+        Some(resolver_factory),
+        Some(loader_resolver_factory),
+    );
     println!("Compiling with entry: {}", entry_file);
     compiler.build().await.expect("build failed");
 

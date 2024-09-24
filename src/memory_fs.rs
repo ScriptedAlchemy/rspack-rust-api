@@ -2,8 +2,9 @@
 
 use std::{
     collections::HashMap,
-    path::PathBuf,
+    path::{Path, PathBuf},
     sync::Arc,
+    io::{Error, ErrorKind},
 };
 use rspack_paths::Utf8Path;
 use futures::future::BoxFuture;
@@ -11,7 +12,7 @@ use tokio::sync::RwLock as AsyncRwLock;
 use rspack_fs::{
     r#async::{AsyncReadableFileSystem, AsyncWritableFileSystem},
     sync::{ReadableFileSystem, WritableFileSystem},
-    Result,
+    Result
 };
 
 #[derive(Clone)]
@@ -57,11 +58,26 @@ impl WritableFileSystem for MockFileSystem {
 }
 
 impl ReadableFileSystem for MockFileSystem {
-    fn read(&self, file: &Utf8Path) -> Result<Vec<u8>> {
-        let file_ref: PathBuf = file.to_path_buf().into();
+    fn metadata(&self, _path: &Path) -> std::io::Result<std::fs::Metadata> {
+        unimplemented!()
+    }
+
+    fn symlink_metadata(&self, _path: &Path) -> std::io::Result<std::fs::Metadata> {
+        unimplemented!()
+    }
+
+    fn canonicalize(&self, _path: &Path) -> std::io::Result<PathBuf> {
+        unimplemented!()
+    }
+
+    fn read(&self, file: &Path) -> std::io::Result<Vec<u8>> {
+        let file_ref: PathBuf = file.to_path_buf();
         dbg!("Reading file: {}", file_ref.display());
         let files = self.files.blocking_read();
-        files.get(&file_ref).cloned().ok_or_else(|| rspack_fs::Error::Io(std::io::Error::new(std::io::ErrorKind::NotFound, "File not found")))
+        files
+            .get(&file_ref)
+            .cloned()
+            .ok_or_else(|| Error::new(ErrorKind::NotFound, "File not found"))
     }
 }
 
@@ -124,13 +140,16 @@ impl AsyncWritableFileSystem for MockFileSystem {
 }
 
 impl AsyncReadableFileSystem for MockFileSystem {
-    fn read(&self, file: &Utf8Path) -> BoxFuture<'_, rspack_fs::Result<Vec<u8>>> {
+    fn read(&self, file: &Utf8Path) -> BoxFuture<'_, Result<Vec<u8>>> {
         let file_ref: PathBuf = file.to_path_buf().into();
-        dbg!(file_ref.display());
+        dbg!(file_ref.as_path().display());
         let files = self.files.clone();
         Box::pin(async move {
             let files = files.read().await;
-            files.get(&file_ref).cloned().ok_or_else(|| rspack_fs::Error::Io(std::io::Error::new(std::io::ErrorKind::NotFound, "File not found")))
+            files
+                .get(&file_ref)
+                .cloned()
+                .ok_or_else(|| rspack_fs::Error::Io(std::io::Error::new(std::io::ErrorKind::NotFound, "File not found")))
         })
     }
 }

@@ -9,6 +9,8 @@ use rspack_fs::{
     Result,
 };
 use rspack_paths::Utf8Path;
+use std::path::{Path, PathBuf};
+use std::fs::Metadata;
 
 #[derive(Clone)]
 pub struct RealFileSystem;
@@ -44,11 +46,21 @@ impl WritableFileSystem for RealFileSystem {
 }
 
 impl ReadableFileSystem for RealFileSystem {
-    fn read(&self, file: &Utf8Path) -> Result<Vec<u8>> {
-        let file_ref = file.to_path_buf();
-        dbg!(&file_ref);
-        let data = fs::read(&file_ref)?;
+    fn read(&self, file: &Path) -> std::io::Result<Vec<u8>> {
+        let data = fs::read(file)?;
         Ok(data)
+    }
+
+    fn metadata(&self, path: &Path) -> std::io::Result<Metadata> {
+        fs::metadata(path)
+    }
+
+    fn symlink_metadata(&self, path: &Path) -> std::io::Result<Metadata> {
+        fs::symlink_metadata(path)
+    }
+
+    fn canonicalize(&self, path: &Path) -> std::io::Result<PathBuf> {
+        fs::canonicalize(path)
     }
 }
 
