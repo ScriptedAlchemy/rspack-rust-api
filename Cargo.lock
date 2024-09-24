@@ -1936,7 +1936,7 @@ dependencies = [
 [[package]]
 name = "rspack_ast"
 version = "0.1.0"
-source = "git+https://github.com/web-infra-dev/rspack?branch=feat/rspack_http_with-resolve#66bcc82ae2c5673bce2f584210e9671c5f0516cd"
+source = "git+https://github.com/web-infra-dev/rspack?branch=feat/rspack_http_with-resolve#6811a6eef582d6e5a62de6ac174a89875fcdba69"
 dependencies = [
  "anyhow",
  "swc_core",
@@ -1947,7 +1947,7 @@ dependencies = [
 [[package]]
 name = "rspack_base64"
 version = "0.1.0"
-source = "git+https://github.com/web-infra-dev/rspack?branch=feat/rspack_http_with-resolve#66bcc82ae2c5673bce2f584210e9671c5f0516cd"
+source = "git+https://github.com/web-infra-dev/rspack?branch=feat/rspack_http_with-resolve#6811a6eef582d6e5a62de6ac174a89875fcdba69"
 dependencies = [
  "base64-simd 0.8.0",
  "regex",
@@ -1956,7 +1956,7 @@ dependencies = [
 [[package]]
 name = "rspack_collections"
 version = "0.1.0"
-source = "git+https://github.com/web-infra-dev/rspack?branch=feat/rspack_http_with-resolve#66bcc82ae2c5673bce2f584210e9671c5f0516cd"
+source = "git+https://github.com/web-infra-dev/rspack?branch=feat/rspack_http_with-resolve#6811a6eef582d6e5a62de6ac174a89875fcdba69"
 dependencies = [
  "dashmap 5.5.3",
  "hashlink",
@@ -1969,7 +1969,7 @@ dependencies = [
 [[package]]
 name = "rspack_core"
 version = "0.1.0"
-source = "git+https://github.com/web-infra-dev/rspack?branch=feat/rspack_http_with-resolve#66bcc82ae2c5673bce2f584210e9671c5f0516cd"
+source = "git+https://github.com/web-infra-dev/rspack?branch=feat/rspack_http_with-resolve#6811a6eef582d6e5a62de6ac174a89875fcdba69"
 dependencies = [
  "anymap",
  "async-recursion",
@@ -2022,7 +2022,7 @@ dependencies = [
 [[package]]
 name = "rspack_error"
 version = "0.1.0"
-source = "git+https://github.com/web-infra-dev/rspack?branch=feat/rspack_http_with-resolve#66bcc82ae2c5673bce2f584210e9671c5f0516cd"
+source = "git+https://github.com/web-infra-dev/rspack?branch=feat/rspack_http_with-resolve#6811a6eef582d6e5a62de6ac174a89875fcdba69"
 dependencies = [
  "anyhow",
  "cow-utils",
@@ -2043,8 +2043,9 @@ dependencies = [
 [[package]]
 name = "rspack_fs"
 version = "0.1.0"
-source = "git+https://github.com/web-infra-dev/rspack?branch=feat/rspack_http_with-resolve#66bcc82ae2c5673bce2f584210e9671c5f0516cd"
+source = "git+https://github.com/web-infra-dev/rspack?branch=feat/rspack_http_with-resolve#6811a6eef582d6e5a62de6ac174a89875fcdba69"
 dependencies = [
+ "dunce",
  "futures",
  "rspack_error",
  "rspack_paths",
@@ -2054,7 +2055,7 @@ dependencies = [
 [[package]]
 name = "rspack_futures"
 version = "0.1.0"
-source = "git+https://github.com/web-infra-dev/rspack?branch=feat/rspack_http_with-resolve#66bcc82ae2c5673bce2f584210e9671c5f0516cd"
+source = "git+https://github.com/web-infra-dev/rspack?branch=feat/rspack_http_with-resolve#6811a6eef582d6e5a62de6ac174a89875fcdba69"
 dependencies = [
  "async-scoped",
 ]
@@ -2062,7 +2063,7 @@ dependencies = [
 [[package]]
 name = "rspack_hash"
 version = "0.1.0"
-source = "git+https://github.com/web-infra-dev/rspack?branch=feat/rspack_http_with-resolve#66bcc82ae2c5673bce2f584210e9671c5f0516cd"
+source = "git+https://github.com/web-infra-dev/rspack?branch=feat/rspack_http_with-resolve#6811a6eef582d6e5a62de6ac174a89875fcdba69"
 dependencies = [
  "data-encoding",
  "md4",
@@ -2073,7 +2074,7 @@ dependencies = [
 [[package]]
 name = "rspack_hook"
 version = "0.1.0"
-source = "git+https://github.com/web-infra-dev/rspack?branch=feat/rspack_http_with-resolve#66bcc82ae2c5673bce2f584210e9671c5f0516cd"
+source = "git+https://github.com/web-infra-dev/rspack?branch=feat/rspack_http_with-resolve#6811a6eef582d6e5a62de6ac174a89875fcdba69"
 dependencies = [
  "async-trait",
  "futures-concurrency",
@@ -2085,7 +2086,7 @@ dependencies = [
 [[package]]
 name = "rspack_ids"
 version = "0.1.0"
-source = "git+https://github.com/web-infra-dev/rspack?branch=feat/rspack_http_with-resolve#66bcc82ae2c5673bce2f584210e9671c5f0516cd"
+source = "git+https://github.com/web-infra-dev/rspack?branch=feat/rspack_http_with-resolve#6811a6eef582d6e5a62de6ac174a89875fcdba69"
 dependencies = [
  "itertools",
  "rayon",
@@ -2100,7 +2101,7 @@ dependencies = [
 [[package]]
 name = "rspack_loader_runner"
 version = "0.1.0"
-source = "git+https://github.com/web-infra-dev/rspack?branch=feat/rspack_http_with-resolve#66bcc82ae2c5673bce2f584210e9671c5f0516cd"
+source = "git+https://github.com/web-infra-dev/rspack?branch=feat/rspack_http_with-resolve#6811a6eef582d6e5a62de6ac174a89875fcdba69"
 dependencies = [
  "anymap",
  "async-trait",
@@ -2109,6 +2110,7 @@ dependencies = [
  "regex",
  "rspack_collections",
  "rspack_error",
+ "rspack_fs",
  "rspack_paths",
  "rspack_sources",
  "rspack_util",
@@ -2120,7 +2122,7 @@ dependencies = [
 [[package]]
 name = "rspack_macros"
 version = "0.1.0"
-source = "git+https://github.com/web-infra-dev/rspack?branch=feat/rspack_http_with-resolve#66bcc82ae2c5673bce2f584210e9671c5f0516cd"
+source = "git+https://github.com/web-infra-dev/rspack?branch=feat/rspack_http_with-resolve#6811a6eef582d6e5a62de6ac174a89875fcdba69"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -2130,7 +2132,7 @@ dependencies = [
 [[package]]
 name = "rspack_paths"
 version = "0.1.0"
-source = "git+https://github.com/web-infra-dev/rspack?branch=feat/rspack_http_with-resolve#66bcc82ae2c5673bce2f584210e9671c5f0516cd"
+source = "git+https://github.com/web-infra-dev/rspack?branch=feat/rspack_http_with-resolve#6811a6eef582d6e5a62de6ac174a89875fcdba69"
 dependencies = [
  "camino",
 ]
@@ -2138,7 +2140,7 @@ dependencies = [
 [[package]]
 name = "rspack_plugin_entry"
 version = "0.1.0"
-source = "git+https://github.com/web-infra-dev/rspack?branch=feat/rspack_http_with-resolve#66bcc82ae2c5673bce2f584210e9671c5f0516cd"
+source = "git+https://github.com/web-infra-dev/rspack?branch=feat/rspack_http_with-resolve#6811a6eef582d6e5a62de6ac174a89875fcdba69"
 dependencies = [
  "async-trait",
  "rspack_core",
@@ -2150,7 +2152,7 @@ dependencies = [
 [[package]]
 name = "rspack_plugin_javascript"
 version = "0.1.0"
-source = "git+https://github.com/web-infra-dev/rspack?branch=feat/rspack_http_with-resolve#66bcc82ae2c5673bce2f584210e9671c5f0516cd"
+source = "git+https://github.com/web-infra-dev/rspack?branch=feat/rspack_http_with-resolve#6811a6eef582d6e5a62de6ac174a89875fcdba69"
 dependencies = [
  "anymap",
  "async-trait",
@@ -2190,7 +2192,7 @@ dependencies = [
 [[package]]
 name = "rspack_plugin_schemes"
 version = "0.1.0"
-source = "git+https://github.com/web-infra-dev/rspack?branch=feat/rspack_http_with-resolve#66bcc82ae2c5673bce2f584210e9671c5f0516cd"
+source = "git+https://github.com/web-infra-dev/rspack?branch=feat/rspack_http_with-resolve#6811a6eef582d6e5a62de6ac174a89875fcdba69"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -2216,7 +2218,7 @@ dependencies = [
 [[package]]
 name = "rspack_regex"
 version = "0.1.0"
-source = "git+https://github.com/web-infra-dev/rspack?branch=feat/rspack_http_with-resolve#66bcc82ae2c5673bce2f584210e9671c5f0516cd"
+source = "git+https://github.com/web-infra-dev/rspack?branch=feat/rspack_http_with-resolve#6811a6eef582d6e5a62de6ac174a89875fcdba69"
 dependencies = [
  "cow-utils",
  "regex-syntax",
@@ -2262,7 +2264,7 @@ dependencies = [
 [[package]]
 name = "rspack_util"
 version = "0.1.0"
-source = "git+https://github.com/web-infra-dev/rspack?branch=feat/rspack_http_with-resolve#66bcc82ae2c5673bce2f584210e9671c5f0516cd"
+source = "git+https://github.com/web-infra-dev/rspack?branch=feat/rspack_http_with-resolve#6811a6eef582d6e5a62de6ac174a89875fcdba69"
 dependencies = [
  "bitflags",
  "concat-string",
@@ -2270,6 +2272,7 @@ dependencies = [
  "indexmap",
  "itoa",
  "regex",
+ "ropey",
  "rspack_regex",
  "rustc-hash 1.1.0",
  "serde",
