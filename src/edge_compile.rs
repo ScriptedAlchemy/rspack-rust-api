@@ -26,6 +26,7 @@ use crate::system_fs::RealFileSystem;
 use rspack_fs::AsyncFileSystem;
 use crate::http_io::ReqwestHttpClient;
 use rspack_paths::{Utf8PathBuf};
+use rspack_fs::ReadableFileSystem;
 
 pub async fn compile(network_entry: Option<String>) -> HashMap<String, Vec<u8>> {
     let mock_fs = MockFileSystem::new();
@@ -177,7 +178,9 @@ pub async fn compile(network_entry: Option<String>) -> HashMap<String, Vec<u8>> 
     plugins.push(Box::new(NamedModuleIdsPlugin::default()));
     plugins.push(Box::new(DataUriPlugin::default()));
 
-    let native_fs: Arc<dyn AsyncFileSystem + Send + Sync> = Arc::new(RealFileSystem::new());
+    let real_fs = Arc::new(RealFileSystem::new());
+    let native_fs_async: Arc<dyn AsyncFileSystem + Send + Sync> = real_fs.clone();
+    let native_fs_read: Arc<dyn ReadableFileSystem + Send + Sync> = real_fs.clone();
 
     let cache_location = Some({
         let cwd = std::env::current_dir().unwrap();
@@ -217,7 +220,7 @@ pub async fn compile(network_entry: Option<String>) -> HashMap<String, Vec<u8>> 
         lockfile_location, 
         proxy: Some("http://proxy.example.com".to_string()),
         upgrade: Some(true),
-        filesystem: native_fs.clone(),
+        filesystem: native_fs_async.clone(),
         http_client: Some(http_client)
     };
     plugins.push(Box::new(HttpUriPlugin::new(http_uri_options)));
@@ -233,9 +236,8 @@ pub async fn compile(network_entry: Option<String>) -> HashMap<String, Vec<u8>> 
     let mut compiler = Compiler::new(
         compiler_options,
         plugins,
-        Box::new(mock_fs),
-        Some(native_fs.clone()),
-        Some(output_filesystem.clone()),
+        Some(Box::new(output_filesystem.clone())),
+        Some(native_fs_read.clone()),
         Some(resolver_factory),
         Some(loader_resolver_factory),
     );
